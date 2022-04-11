@@ -10,10 +10,11 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
-scopes = ['https://www.googleapis.com/auth/drive.readonly']
-document_id = '1sXhQBVv2Xy5NoTsg4JvHLNmKrbC5PgRNghsUXqPWh0A'
-creds_file = pathlib.Path('secret/token.json')
-resume_file = pathlib.Path('static/resume.pdf')
+scopes = ["https://www.googleapis.com/auth/drive.readonly"]
+document_id = "1sXhQBVv2Xy5NoTsg4JvHLNmKrbC5PgRNghsUXqPWh0A"
+creds_file = pathlib.Path("secret/token.json")
+resume_file = pathlib.Path("static/resume.pdf")
+
 
 def main(secrets_file=None):
     if secrets_file:
@@ -29,8 +30,8 @@ def main(secrets_file=None):
         creds = Credentials(**json.loads(creds_file.read_bytes()))
         if not isinstance(creds.expiry, datetime):
             creds.expiry = datetime.strptime(
-                    creds.expiry.rstrip("Z").split(".")[0], "%Y-%m-%dT%H:%M:%S"
-                )
+                creds.expiry.rstrip("Z").split(".")[0], "%Y-%m-%dT%H:%M:%S"
+            )
 
     if not creds.valid:
         if creds.expired and creds.refresh_token:
@@ -38,14 +39,21 @@ def main(secrets_file=None):
         else:
             raise RuntimeError("Invalid credentials, unable to refresh")
 
-    service = build('drive', 'v3', credentials=creds)
+    service = build("drive", "v3", credentials=creds)
 
-    resume_data = service.files().export(fileId=document_id, mimeType='application/pdf').execute()
+    resume_data = (
+        service.files().export(fileId=document_id, mimeType="application/pdf").execute()
+    )
     resume_file.write_bytes(resume_data)
 
 
-if __name__== "__main__":
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--secrets-file", type=pathlib.Path, required=False)
+    parser.add_argument(
+        "--secrets-file",
+        type=pathlib.Path,
+        required=False,
+        help="Used for credential generation, get from https://console.cloud.google.com/apis/credentials",
+    )
     args = parser.parse_args()
     main(**vars(args))
