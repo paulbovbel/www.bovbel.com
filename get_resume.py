@@ -4,6 +4,7 @@ import json
 import pathlib
 import sys
 
+from datetime import datetime
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -26,8 +27,16 @@ def main(secrets_file=None):
 
     else:
         creds = Credentials(**json.loads(creds_file.read_bytes()))
+        if not isinstance(creds.expiry, datetime):
+            creds.expiry = datetime.strptime(
+                    creds.expiry.rstrip("Z").split(".")[0], "%Y-%m-%dT%H:%M:%S"
+                )
 
-    creds.refresh(Request())
+    if not creds.valid:
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            raise RuntimeError("Invalid credentials, unable to refresh")
 
     service = build('drive', 'v3', credentials=creds)
 
