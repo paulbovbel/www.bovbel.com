@@ -27,11 +27,7 @@ def main(secrets_file=None):
     else:
         creds = Credentials(**json.loads(creds_file.read_bytes()))
 
-    if not creds.valid:
-        if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            raise RuntimeError("Invalid credentials, unable to refresh")
+    creds.refresh(Request())
 
     service = build('drive', 'v3', credentials=creds)
 
