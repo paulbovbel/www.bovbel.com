@@ -6,12 +6,6 @@ echo "Creating venv..."
 python3 -m venv venv
 venv/bin/pip install -r requirements.txt
 
-if [ ! -f "secret/token.json" ]; then
-    echo "Pulling secret token...   "
-    mkdir -p secret
-    echo $GOOGLE_TOKEN > secret/token.json
-fi
-
 echo "Pulling resume..."
 venv/bin/python get_resume.py
 

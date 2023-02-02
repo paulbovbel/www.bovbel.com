@@ -1,59 +1,39 @@
 #!/usr/bin/env python3
-import argparse
-import json
 import pathlib
-import sys
+import requests
 
-from datetime import datetime
-from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-
-scopes = ["https://www.googleapis.com/auth/drive.readonly"]
 document_id = "1sXhQBVv2Xy5NoTsg4JvHLNmKrbC5PgRNghsUXqPWh0A"
-creds_file = pathlib.Path("secret/token.json")
 resume_file = pathlib.Path("static/resume.pdf")
 
+def download_file_from_google_drive(id, destination):
+    URL = f"https://docs.google.com/document/d/{id}/export?format=pdf"
 
-def main(secrets_file=None):
-    if secrets_file:
-        if not sys.__stdin__.isatty():
-            raise RuntimeError("Token creation must be run from an interactive shell")
+    session = requests.Session()
 
-        flow = InstalledAppFlow.from_client_secrets_file(secrets_file, scopes)
-        creds = flow.run_local_server(port=0)
-        creds_file.write_text(creds.to_json())
-        print(f"Please add {creds_file} to GitHub repo secrets.")
+    response = session.get(URL, params = { 'id' : id , 'confirm': 1 }, stream = True)
+    token = get_confirm_token(response)
 
-    else:
-        creds = Credentials(**json.loads(creds_file.read_bytes()))
-        if not isinstance(creds.expiry, datetime):
-            creds.expiry = datetime.strptime(
-                creds.expiry.rstrip("Z").split(".")[0], "%Y-%m-%dT%H:%M:%S"
-            )
+    if token:
+        params = { 'id' : id, 'confirm' : token }
+        response = session.get(URL, params = params, stream = True)
 
-    if not creds.valid:
-        if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            raise RuntimeError("Invalid credentials, unable to refresh")
+    save_response_content(response, destination)    
 
-    service = build("drive", "v3", credentials=creds)
+def get_confirm_token(response):
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            return value
 
-    resume_data = (
-        service.files().export(fileId=document_id, mimeType="application/pdf").execute()
-    )
-    resume_file.write_bytes(resume_data)
+    return None
+
+def save_response_content(response, destination):
+    CHUNK_SIZE = 32768
+
+    with open(destination, "wb") as f:
+        for chunk in response.iter_content(CHUNK_SIZE):
+            if chunk: # filter out keep-alive new chunks
+                f.write(chunk)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--secrets-file",
-        type=pathlib.Path,
-        required=False,
-        help="Used for credential generation, get from https://console.cloud.google.com/apis/credentials",
-    )
-    args = parser.parse_args()
-    main(**vars(args))
+    download_file_from_google_drive(document_id, resume_file)
