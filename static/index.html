@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en">
 
 <head>
   <!-- Google tag (gtag.js) -->
@@ -8,79 +8,72 @@
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-
     gtag('config', 'G-57Q5PWFEVM');
   </script>
 
-  <meta name="google-site-verification" content="RFzqWU89ZSo966nh1NqUWmU78bJNclDONjLG4EqbPGw" />
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google-site-verification" content="RFzqWU89ZSo966nh1NqUWmU78bJNclDONjLG4EqbPGw">
 
-  <title>bovbel.com</title>
-  <link rel="icon" type="image/png" href="favicon.ico">
+  <title>Paul Bovbel</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
 
-  <style type="text/css">
-    div.container {
-      top: 25%;
-      left: 0;
-      width: 100%;
-      height: 50%;
-      position: absolute;
-      display: table;
+  <style>
+    * {
+      box-sizing: border-box;
     }
 
-    .avatar-cropper {
-      width: 200px;
-      height: 200px;
-      position: relative;
-      overflow: hidden;
-      border-radius: 50%;
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      text-align: center;
+      padding: 2rem;
     }
 
     .avatar {
       width: 200px;
       height: 200px;
-      margin: 0 auto;
+      border-radius: 50%;
       object-fit: cover;
     }
 
-    p {
-      display: table-cell;
-      vertical-align: middle
+    .links {
+      margin: 1.5rem 0;
     }
 
-    body,
-    html {
-      height: 100%;
-      margin: 0;
-      padding: 0
+    .links a {
+      margin: 0 0.5rem;
     }
 
-    span.hide {
-      display: none;
+    .contact {
+      margin-top: 1rem;
     }
   </style>
 </head>
 
 <body>
-  <div class="container">
-    <center>
-      <p>
-        <div class="avatar-cropper">
-          <img class="avatar" src="https://www.gravatar.com/avatar/c436d411a0ecc119476d704396a47d3e?s=2048"><br>
-        </div>
-        <br />
+  <main class="container">
+    <img class="avatar" src="https://www.gravatar.com/avatar/c436d411a0ecc119476d704396a47d3e?s=400" alt="Paul Bovbel">
 
-        <a href="./resume.html">Resume</a> |
-        <a href="http://github.com/paulbovbel">GitHub</a> |
-        <!-- <a href="http://code.google.com/p/mover-bot/">Google Code</a> | -->
-        <a href="http://ca.linkedin.com/pub/paul-bovbel/32/630/494">LinkedIn</a> |
-        <a href="https://www.printables.com/@paulbovbel_506833">Printables</a>
-        <br><br>
+    <nav class="links">
+      <a href="./resume.pdf">Resume</a> |
+      <a href="https://github.com/paulbovbel">GitHub</a> |
+      <a href="https://linkedin.com/in/paulbovbel">LinkedIn</a> |
+      <a href="https://www.printables.com/@paulbovbel">Printables</a>
+    </nav>
 
-        Contact: paul<img src="sign.jpg">bovbel.com
-      </p>
-    </center>
-  </div>
+    <p class="contact">
+      Contact: paul<img src="sign.jpg">bovbel.com
+    </p>
+  </main>
 </body>
 
 </html>

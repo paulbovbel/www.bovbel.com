@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+import os
+import boto3
+import requests
+import mimetypes
+from pathlib import Path
+
+BUCKET_NAME = "www.bovbel.com"
+DISTRIBUTION_ID = "E3EDUX8NQFYNJF"
+STATIC_DIR = Path(__file__).parent / "static"
+
+REDIRECTS = {
+    "meet": "https://doodle.com/bp/paulbovbel/meet",
+    "resume": "https://www.bovbel.com/resume.pdf",
+}
+
+REDIRECT_TEMPLATE = """\
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-57Q5PWFEVM"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){{dataLayer.push(arguments);}}
+    gtag('js', new Date());
+    gtag('config', 'G-57Q5PWFEVM');
+  </script>
+  <title>Paul Bovbel - {title}</title>
+  <meta http-equiv="refresh" content="0;URL={target}" />
+</head>
+<body>
+  <p>Redirecting to <a href="{target}">{target}</a>.</p>
+</body>
+</html>
+"""
+
+
+def download_resume():
+    """Download resume PDF from Google Docs."""
+    print("Downloading resume...")
+    resume_doc_id = os.environ["RESUME_DOC_ID"]
+    url = f"https://docs.google.com/document/d/{resume_doc_id}/export?format=pdf"
+
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+
+    resume_path = STATIC_DIR / "resume.pdf"
+    resume_path.write_bytes(response.content)
+    print(f"Resume saved to {resume_path}")
+
+
+def upload_redirects():
+    """Generate and upload redirect pages."""
+    print("Uploading redirect pages...")
+    s3 = boto3.client("s3")
+
+    for name, target in REDIRECTS.items():
+        title = name.capitalize()
+        html = REDIRECT_TEMPLATE.format(title=title, target=target)
+
+        # Upload as name.html
+        print(f"  Uploading {name}.html")
+        s3.put_object(
+            Bucket=BUCKET_NAME,
+            Key=f"{name}.html",
+            Body=html.encode("utf-8"),
+            ContentType="text/html",
+        )
+
+        # Upload as name (extensionless)
+        print(f"  Uploading {name}")
+        s3.put_object(
+            Bucket=BUCKET_NAME,
+            Key=name,
+            Body=html.encode("utf-8"),
+            ContentType="text/html",
+        )
+
+        # Upload as name/index.html
+        print(f"  Uploading {name}/index.html")
+        s3.put_object(
+            Bucket=BUCKET_NAME,
+            Key=f"{name}/index.html",
+            Body=html.encode("utf-8"),
+            ContentType="text/html",
+        )
+
+
+def sync_to_s3():
+    """Sync static files to S3 bucket."""
+    print("Syncing to S3...")
+    s3 = boto3.client("s3")
+
+    # Sync all files in static directory
+    for file_path in STATIC_DIR.rglob("*"):
+        if file_path.is_file():
+            key = str(file_path.relative_to(STATIC_DIR))
+            content_type, _ = mimetypes.guess_type(str(file_path))
+            extra_args = {"ContentType": content_type} if content_type else {}
+
+            print(f"  Uploading {key}")
+            s3.upload_file(str(file_path), BUCKET_NAME, key, ExtraArgs=extra_args)
+
+
+def invalidate_cloudfront():
+    """Invalidate CloudFront cache."""
+    print("Invalidating CloudFront cache...")
+    cloudfront = boto3.client("cloudfront")
+
+    response = cloudfront.create_invalidation(
+        DistributionId=DISTRIBUTION_ID,
+        InvalidationBatch={
+            "Paths": {"Quantity": 1, "Items": ["/*"]},
+            "CallerReference": str(hash(os.urandom(16))),
+        },
+    )
+    print(f"  Invalidation ID: {response['Invalidation']['Id']}")
+
+
+def main():
+    download_resume()
+    sync_to_s3()
+    upload_redirects()
+    invalidate_cloudfront()
+    print("Done!")
+
+
+if __name__ == "__main__":
+    main()
