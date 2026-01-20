@@ -1,18 +1,14 @@
 #!/bin/bash
-set -u
-set -e
+set -eu
 
-echo "Creating venv..."
-python3 -m venv venv
-venv/bin/pip install -r requirements.txt
+echo "Downloading resume..."
+curl -L "https://docs.google.com/document/d/$RESUME_DOC_ID/export?format=pdf" \
+    -o static/resume.pdf
 
-echo "Pulling resume..."
-venv/bin/python get_resume.py
-
-echo "Syncing to s3 bucket..."
+echo "Syncing to S3..."
 aws s3 sync static s3://www.bovbel.com/
 
-echo "Invalidating cache..."
+echo "Invalidating CloudFront cache..."
 aws cloudfront create-invalidation \
     --distribution-id E3EDUX8NQFYNJF \
     --paths '/*'
