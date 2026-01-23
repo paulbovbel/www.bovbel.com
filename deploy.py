@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import os
 import boto3
 import requests
@@ -50,6 +51,21 @@ def download_resume():
     print(f"Resume saved to {resume_path}")
 
 
+def upload_static():
+    """Sync static files to S3 bucket."""
+    print("Syncing static files to S3...")
+    s3 = boto3.client("s3")
+
+    for file_path in STATIC_DIR.rglob("*"):
+        if file_path.is_file():
+            key = str(file_path.relative_to(STATIC_DIR))
+            content_type, _ = mimetypes.guess_type(str(file_path))
+            extra_args = {"ContentType": content_type} if content_type else {}
+
+            print(f"  Uploading {key}")
+            s3.upload_file(str(file_path), BUCKET_NAME, key, ExtraArgs=extra_args)
+
+
 def upload_redirects():
     """Generate and upload redirect pages."""
     print("Uploading redirect pages...")
@@ -59,48 +75,14 @@ def upload_redirects():
         title = name.capitalize()
         html = REDIRECT_TEMPLATE.format(title=title, target=target)
 
-        # Upload as name.html
-        print(f"  Uploading {name}.html")
-        s3.put_object(
-            Bucket=BUCKET_NAME,
-            Key=f"{name}.html",
-            Body=html.encode("utf-8"),
-            ContentType="text/html",
-        )
-
-        # Upload as name (extensionless)
-        print(f"  Uploading {name}")
-        s3.put_object(
-            Bucket=BUCKET_NAME,
-            Key=name,
-            Body=html.encode("utf-8"),
-            ContentType="text/html",
-        )
-
-        # Upload as name/index.html
-        print(f"  Uploading {name}/index.html")
-        s3.put_object(
-            Bucket=BUCKET_NAME,
-            Key=f"{name}/index.html",
-            Body=html.encode("utf-8"),
-            ContentType="text/html",
-        )
-
-
-def sync_to_s3():
-    """Sync static files to S3 bucket."""
-    print("Syncing to S3...")
-    s3 = boto3.client("s3")
-
-    # Sync all files in static directory
-    for file_path in STATIC_DIR.rglob("*"):
-        if file_path.is_file():
-            key = str(file_path.relative_to(STATIC_DIR))
-            content_type, _ = mimetypes.guess_type(str(file_path))
-            extra_args = {"ContentType": content_type} if content_type else {}
-
+        for key in [f"{name}.html", name, f"{name}/index.html"]:
             print(f"  Uploading {key}")
-            s3.upload_file(str(file_path), BUCKET_NAME, key, ExtraArgs=extra_args)
+            s3.put_object(
+                Bucket=BUCKET_NAME,
+                Key=key,
+                Body=html.encode("utf-8"),
+                ContentType="text/html",
+            )
 
 
 def invalidate_cloudfront():
@@ -119,10 +101,26 @@ def invalidate_cloudfront():
 
 
 def main():
-    download_resume()
-    sync_to_s3()
-    upload_redirects()
-    invalidate_cloudfront()
+    parser = argparse.ArgumentParser(description="Deploy www.bovbel.com")
+    parser.add_argument(
+        "command",
+        choices=["download-resume", "upload", "all"],
+        help="Command to run",
+    )
+    args = parser.parse_args()
+
+    if args.command == "download-resume":
+        download_resume()
+    elif args.command == "upload":
+        upload_static()
+        upload_redirects()
+        invalidate_cloudfront()
+    elif args.command == "all":
+        download_resume()
+        upload_static()
+        upload_redirects()
+        invalidate_cloudfront()
+
     print("Done!")
 
 
