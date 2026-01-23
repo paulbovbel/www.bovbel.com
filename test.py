@@ -92,6 +92,23 @@ def extract_html_links(html, base_url):
     return links
 
 
+def is_local_url(url):
+    """Check if URL points to www.bovbel.com."""
+    parsed = urlparse(url)
+    return parsed.netloc == "www.bovbel.com"
+
+
+def check_link(url):
+    """Check if a link is valid - local files checked on disk, remote via HTTP."""
+    if is_local_url(url):
+        parsed = urlparse(url)
+        local_path = STATIC_DIR / parsed.path.lstrip("/")
+        return local_path.exists()
+    else:
+        r = http_head(url)
+        return r.status_code < 400
+
+
 def extract_pdf_links(content):
     """Extract links from PDF content."""
     links = set()
@@ -147,8 +164,7 @@ def test_local_index_has_links():
 @pytest.mark.parametrize("url", get_local_index_links() if (STATIC_DIR / "index.html").exists() else [])
 def test_local_index_link_valid(url):
     """Test that each link in local index.html is reachable."""
-    r = http_head(url)
-    assert r.status_code < 400, f"Link {url} returned {r.status_code}"
+    assert check_link(url), f"Link {url} is not valid"
 
 
 @pytest.mark.pre_deploy
@@ -162,8 +178,7 @@ def test_local_resume_has_links():
 @pytest.mark.parametrize("url", get_local_resume_links() if (STATIC_DIR / "resume.pdf").exists() else [])
 def test_local_resume_link_valid(url):
     """Test that each link in local resume.pdf is reachable."""
-    r = http_head(url)
-    assert r.status_code < 400, f"Link {url} returned {r.status_code}"
+    assert check_link(url), f"Link {url} is not valid"
 
 
 # =============================================================================
