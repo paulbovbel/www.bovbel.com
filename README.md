@@ -6,19 +6,15 @@ Personal website deployment
 ## Local Development
 
 ```bash
-python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
+uv sync
 
 export RESUME_DOC_ID="your-google-doc-id"
-./venv/bin/python deploy.py
-
-./venv/bin/pytest test.py -v
+uv run python deploy.py all
+uv run pytest test.py
 ```
 
 ## Updating Dependencies
 
 ```bash
-./venv/bin/pip install pip-tools
-./venv/bin/pip-compile requirements.in
-./venv/bin/pip-sync
+uv lock --upgrade
 ```

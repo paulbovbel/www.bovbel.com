@@ -104,8 +104,10 @@ def main():
     parser = argparse.ArgumentParser(description="Deploy www.bovbel.com")
     parser.add_argument(
         "command",
+        nargs="?",
+        default="all",
         choices=["download-resume", "upload", "all"],
-        help="Command to run",
+        help="Command to run (default: all)",
     )
     args = parser.parse_args()
 

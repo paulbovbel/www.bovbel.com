@@ -1,0 +1,17 @@
+[project]
+name = "www-bovbel-com"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "boto3",
+    "botocore[crt]",
+    "requests",
+    "pytest",
+    "pymupdf",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "pre_deploy: tests that run before deployment (local files)",
+    "post_deploy: tests that run after deployment (live site)",
+]
