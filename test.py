@@ -33,6 +33,7 @@ SKIP_DOMAINS = {
     "www.linkedin.com",
     "printables.com",
     "www.printables.com",
+    "wiki.ros.org"
 }
 
 
