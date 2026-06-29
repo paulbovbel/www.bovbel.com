@@ -1,0 +1,9 @@
+{
+  "www-bovbel-com": {
+    "DeployRoleArn": "arn:aws:iam::713134244406:role/www-bovbel-com-deploy",
+    "BucketName": "www.bovbel.com",
+    "DistributionId": "EAQ8TNU1R7DV6",
+    "DomainNames": "bovbel.com,www.bovbel.com,paul.bovbel.com",
+    "DistributionDomainName": "d1qmbdo1amevtw.cloudfront.net"
+  }
+}

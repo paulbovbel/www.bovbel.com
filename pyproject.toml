@@ -8,6 +8,8 @@ dependencies = [
     "requests",
     "pytest",
     "pymupdf",
+    "aws-cdk-lib",
+    "constructs",
 ]
 
 [tool.pytest.ini_options]

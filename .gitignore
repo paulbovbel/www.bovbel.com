@@ -2,3 +2,5 @@ static/resume.pdf
 results*.xml
 .venv/
 .pytest_cache/
+__pycache__/
+cdk.out/

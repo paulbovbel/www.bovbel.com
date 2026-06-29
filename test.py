@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import requests
 import pytest
 import re
@@ -9,8 +10,11 @@ from urllib.parse import urlparse
 
 import fitz  # PyMuPDF
 
+from deploy import get_resume_pdf
+
 REQUEST_TIMEOUT = 10
 STATIC_DIR = Path(__file__).parent / "static"
+RESUME_KEY = "resume.pdf"
 
 INDEX_URL = "https://www.bovbel.com/"
 RESUME_URL = "https://www.bovbel.com/resume.pdf"
@@ -103,6 +107,9 @@ def check_link(url):
     """Check if a link is valid - local files checked on disk, remote via HTTP."""
     if is_local_url(url):
         parsed = urlparse(url)
+        if parsed.path.lstrip("/") == RESUME_KEY:
+            return get_resume_pdf().startswith(b"%PDF")
+
         local_path = STATIC_DIR / parsed.path.lstrip("/")
         return local_path.exists()
     else:
@@ -136,10 +143,8 @@ def get_local_index_links():
 
 
 def get_local_resume_links():
-    """Extract links from local resume.pdf."""
-    resume_path = STATIC_DIR / "resume.pdf"
-    content = resume_path.read_bytes()
-    return extract_pdf_links(content)
+    """Extract links from the Google Docs resume PDF."""
+    return extract_pdf_links(get_resume_pdf())
 
 
 @pytest.mark.pre_deploy
@@ -150,8 +155,8 @@ def test_local_index_exists():
 
 @pytest.mark.pre_deploy
 def test_local_resume_exists():
-    """Ensure resume.pdf exists."""
-    assert (STATIC_DIR / "resume.pdf").exists()
+    """Ensure the Google Docs resume export returns a PDF."""
+    assert get_resume_pdf().startswith(b"%PDF")
 
 
 @pytest.mark.pre_deploy
@@ -176,10 +181,10 @@ def test_local_resume_has_links():
 
 
 @pytest.mark.pre_deploy
-@pytest.mark.parametrize("url", get_local_resume_links() if (STATIC_DIR / "resume.pdf").exists() else [])
-def test_local_resume_link_valid(url):
-    """Test that each link in local resume.pdf is reachable."""
-    assert check_link(url), f"Link {url} is not valid"
+def test_local_resume_links_valid():
+    """Test that each link in the Google Docs resume PDF is reachable."""
+    for url in get_local_resume_links():
+        assert check_link(url), f"Link {url} is not valid"
 
 
 # =============================================================================

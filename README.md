@@ -6,11 +6,27 @@ Personal website deployment
 ## Local Development
 
 ```bash
+nix develop
 uv sync
 
 export RESUME_DOC_ID="your-google-doc-id"
-uv run python deploy.py all
 uv run pytest test.py
+uv run python deploy.py --stack www-bovbel-com
+```
+
+## Ship it
+
+To provision the S3 bucket, CloudFront distribution, Route 53 records, ACM certificate, and deploy IAM role:
+
+```bash
+nix develop
+uv sync
+
+export AWS_PROFILE=personal-admin
+export RESUME_DOC_ID="your-google-doc-id"
+cdk bootstrap aws://713134244406/us-east-1
+cdk deploy www-bovbel-com --outputs-file cdk-outputs.json
+uv run python deploy.py --stack www-bovbel-com
 ```
 
 ## Updating Dependencies
