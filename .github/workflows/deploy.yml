@@ -1,4 +1,4 @@
-name: Deploy www.bovbel.com
+name: Deploy sites
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: deploy-www-bovbel-com
+  group: deploy-sites
   cancel-in-progress: true
 
 permissions:
@@ -16,8 +16,20 @@ permissions:
 
 jobs:
   deploy:
-    name: Deploy www.bovbel.com
+    name: Deploy ${{ matrix.domain }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - domain: paul.bovbel.com
+            stack: paul-bovbel-com
+            role: paul-bovbel-com-deploy
+            run_tests: true
+          - domain: rebecca.bovbel.com
+            stack: rebecca-bovbel-com
+            role: rebecca-bovbel-com-deploy
+            run_tests: false
 
     steps:
     - name: Checkout
@@ -33,36 +45,34 @@ jobs:
       run: uv sync
 
     - name: Run pre-deploy tests
-      env:
-        RESUME_DOC_ID: ${{ secrets.RESUME_DOC_ID }}
-      run: uv run pytest test.py -v -m pre_deploy --junit-xml=results-pre-deploy.xml
+      if: matrix.run_tests
+      run: uv run pytest test.py -v -m pre_deploy --junit-xml=results-pre-deploy-${{ matrix.stack }}.xml
 
     - name: Publish pre-deploy test results
       uses: mikepenz/action-junit-report@v6
-      if: always()
+      if: always() && matrix.run_tests
       with:
-        report_paths: results-pre-deploy.xml
+        report_paths: results-pre-deploy-${{ matrix.stack }}.xml
         fail_on_failure: true
-        check_name: Pre-deploy Tests
+        check_name: Pre-deploy Tests (${{ matrix.domain }})
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v5
       with:
-        role-to-assume: ${{ secrets.DEPLOY_ROLE_ARN }}
+        role-to-assume: arn:aws:iam::713134244406:role/${{ matrix.role }}
         aws-region: us-east-2
 
     - name: Upload to S3
-      env:
-        RESUME_DOC_ID: ${{ secrets.RESUME_DOC_ID }}
-      run: uv run python deploy.py --stack www-bovbel-com
+      run: uv run deploy-site --stack ${{ matrix.stack }}
 
     - name: Run post-deploy tests
-      run: uv run pytest test.py -v -m post_deploy --junit-xml=results-post-deploy.xml
+      if: matrix.run_tests
+      run: uv run pytest test.py -v -m post_deploy --junit-xml=results-post-deploy-${{ matrix.stack }}.xml
 
     - name: Publish post-deploy test results
       uses: mikepenz/action-junit-report@v6
-      if: always()
+      if: always() && matrix.run_tests
       with:
-        report_paths: results-post-deploy.xml
+        report_paths: results-post-deploy-${{ matrix.stack }}.xml
         fail_on_failure: true
-        check_name: Post-deploy Tests
+        check_name: Post-deploy Tests (${{ matrix.domain }})

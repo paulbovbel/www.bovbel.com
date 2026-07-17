@@ -1,5 +1,5 @@
-static/resume.pdf
-.local-site/
+sites/paul/build/
+sites/rebecca/build/
 results*.xml
 .venv/
 .pytest_cache/

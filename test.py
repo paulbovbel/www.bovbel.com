@@ -10,14 +10,14 @@ from urllib.parse import urlparse
 
 import fitz  # PyMuPDF
 
-from deploy import get_resume_pdf
+from sites.paul.generate import get_resume_pdf
 
 REQUEST_TIMEOUT = 10
-STATIC_DIR = Path(__file__).parent / "static"
+STATIC_DIR = Path(__file__).parent / "sites" / "paul" / "static"
 RESUME_KEY = "resume.pdf"
 
-INDEX_URL = "https://www.bovbel.com/"
-RESUME_URL = "https://www.bovbel.com/resume.pdf"
+INDEX_URL = "https://paul.bovbel.com/"
+RESUME_URL = "https://paul.bovbel.com/resume.pdf"
 
 META_REFRESH_RE = re.compile(
     r'<meta\s+http-equiv=[\"\']?refresh[\"\']?\s+content=[\"\']?\s*\d+\s*;\s*URL=[\"\']?([^\"\'>\s]+)[\"\']+\s*/>',
@@ -25,10 +25,10 @@ META_REFRESH_RE = re.compile(
 )
 
 URLS_META_REFRESH = {
-    "https://www.bovbel.com/resume": "https://www.bovbel.com/resume.pdf",
-    "https://www.bovbel.com/resume/": "https://www.bovbel.com/resume.pdf",
-    "https://www.bovbel.com/meet": "https://doodle.com/bp/paulbovbel/meet",
-    "https://www.bovbel.com/meet/": "https://doodle.com/bp/paulbovbel/meet",
+    "https://paul.bovbel.com/resume": "https://paul.bovbel.com/resume.pdf",
+    "https://paul.bovbel.com/resume/": "https://paul.bovbel.com/resume.pdf",
+    "https://paul.bovbel.com/meet": "https://doodle.com/bp/paulbovbel/meet",
+    "https://paul.bovbel.com/meet/": "https://doodle.com/bp/paulbovbel/meet",
 }
 
 # Domains that block automated requests or require authentication
@@ -98,9 +98,9 @@ def extract_html_links(html, base_url):
 
 
 def is_local_url(url):
-    """Check if URL points to www.bovbel.com."""
+    """Check if URL points to Paul Bovbel's site."""
     parsed = urlparse(url)
-    return parsed.netloc == "www.bovbel.com"
+    return parsed.netloc in {"paul.bovbel.com", "www.bovbel.com", "bovbel.com"}
 
 
 def check_link(url):
