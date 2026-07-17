@@ -2,6 +2,7 @@
 import argparse
 import json
 import mimetypes
+import shutil
 from functools import cache
 import os
 from pathlib import Path
@@ -10,6 +11,7 @@ import boto3
 import requests
 
 STATIC_DIR = Path(__file__).parent / "static"
+LOCAL_SITE_DIR = Path(__file__).parent / ".local-site"
 CDK_OUTPUTS = Path(__file__).parent / "cdk-outputs.json"
 RESUME_KEY = "resume.pdf"
 
@@ -78,10 +80,32 @@ def redirect_uploads():
             yield key, html.encode("utf-8")
 
 
+def generated_files():
+    """Return generated file keys, bodies, and content types."""
+    yield RESUME_KEY, get_resume_pdf(), "application/pdf"
+
+    for key, body in redirect_uploads():
+        yield key, body, "text/html"
+
+
+def local_path_for_key(output_dir, key):
+    """Return the local filesystem path that best emulates a deployed key."""
+    if key.endswith("/"):
+        return output_dir / key / "index.html"
+
+    if key in REDIRECTS:
+        return output_dir / key / "index.html"
+
+    return output_dir / key
+
+
 @cache
 def get_resume_pdf():
     """Return resume PDF bytes from Google Docs."""
-    resume_doc_id = os.environ["RESUME_DOC_ID"]
+    resume_doc_id = os.environ.get("RESUME_DOC_ID")
+    if not resume_doc_id:
+        raise SystemExit("RESUME_DOC_ID must be set to export resume.pdf from Google Docs")
+
     url = f"https://docs.google.com/document/d/{resume_doc_id}/export?format=pdf"
 
     response = requests.get(url, timeout=30)
@@ -92,8 +116,8 @@ def get_resume_pdf():
 def upload_objects(s3, bucket_name):
     """Upload static files and generated redirects to S3."""
     static = list(static_files())
-    redirects = list(redirect_uploads())
-    print(f"Uploading {len(static) + len(redirects) + 1} objects to S3...")
+    generated = list(generated_files())
+    print(f"Uploading {len(static) + len(generated)} objects to S3...")
 
     for file_path, key in static:
         print(f"  Uploading {key}")
@@ -104,24 +128,16 @@ def upload_objects(s3, bucket_name):
             ExtraArgs=content_type_args(file_path),
         )
 
-    print(f"  Uploading {RESUME_KEY}")
-    s3.put_object(
-        Bucket=bucket_name,
-        Key=RESUME_KEY,
-        Body=get_resume_pdf(),
-        ContentType="application/pdf",
-    )
-
-    for key, body in redirects:
+    for key, body, content_type in generated:
         print(f"  Uploading {key}")
         s3.put_object(
             Bucket=bucket_name,
             Key=key,
             Body=body,
-            ContentType="text/html",
+            ContentType=content_type,
         )
 
-    print(f"  Uploaded {len(static)} static files, 1 resume, and {len(redirects)} redirects")
+    print(f"  Uploaded {len(static)} static files and {len(generated)} generated files")
 
 
 def delete_objects(s3, bucket_name, objects):
@@ -200,14 +216,39 @@ def upload(bucket_name, distribution_id):
     invalidate_cloudfront(cloudfront, distribution_id)
 
 
+def build_local_site(output_dir=LOCAL_SITE_DIR):
+    """Build a local static directory that mirrors generated deploy assets."""
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+
+    shutil.copytree(STATIC_DIR, output_dir)
+    for key, body, _ in generated_files():
+        file_path = local_path_for_key(output_dir, key)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_bytes(body)
+
+    print(f"Built local site in {output_dir}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Deploy www.bovbel.com")
     parser.add_argument(
+        "--local",
+        action="store_true",
+        help=f"Build {LOCAL_SITE_DIR.name}/ for local static serving instead of deploying",
+    )
+    parser.add_argument(
         "--stack",
-        required=True,
         help="Read BucketName and DistributionId from cdk-outputs.json for this stack",
     )
     args = parser.parse_args()
+
+    if args.local:
+        build_local_site()
+        return
+
+    if not args.stack:
+        parser.error("--stack is required unless --local is used")
 
     outputs = cdk_outputs(args.stack)
     bucket_name = outputs["BucketName"]

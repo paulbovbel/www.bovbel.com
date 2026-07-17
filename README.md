@@ -11,7 +11,8 @@ uv sync
 
 export RESUME_DOC_ID="your-google-doc-id"
 uv run pytest test.py
-uv run python deploy.py --stack www-bovbel-com
+uv run python deploy.py --local
+npm exec --yes serve -- .local-site
 ```
 
 ## Ship it

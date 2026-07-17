@@ -1,4 +1,5 @@
 static/resume.pdf
+.local-site/
 results*.xml
 .venv/
 .pytest_cache/
