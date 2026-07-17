@@ -3,7 +3,7 @@ from aws_cdk import App
 
 from bovbel_site.infra.domain import DomainStack
 from bovbel_site.infra.mail import MailStack
-from bovbel_site.infra.website import SiteConfig, WebsiteStack
+from bovbel_site.infra.website import WebsiteStack
 from bovbel_site.sites import STATIC_SITES
 
 
@@ -15,13 +15,8 @@ app = App()
 for site in STATIC_SITES:
     WebsiteStack(
         app,
-        site.stack_name,
-        SiteConfig(
-            bucket_name=site.bucket_name,
-            domain_names=site.domain_names,
-            role_name=site.role_name,
-            account_id=ACCOUNT_ID,
-        ),
+        site,
+        account_id=ACCOUNT_ID,
         env=ENV,
     )
 DomainStack(

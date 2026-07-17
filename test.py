@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-import os
 import requests
 import pytest
 import re
 import io
 from html.parser import HTMLParser
-from pathlib import Path
 from urllib.parse import urlparse
 
 import fitz  # PyMuPDF
 
-from sites.paul.generate import get_resume_pdf
+from bovbel_site.sites import SITES_BY_NAME
+from sites.paul.generate import REDIRECTS, get_resume_pdf
 
 REQUEST_TIMEOUT = 10
-STATIC_DIR = Path(__file__).parent / "sites" / "paul" / "static"
+PAUL_SITE = SITES_BY_NAME["paul"]
+STATIC_DIR = PAUL_SITE.generator_script.parent / "static"
 RESUME_KEY = "resume.pdf"
 
-INDEX_URL = "https://paul.bovbel.com/"
-RESUME_URL = "https://paul.bovbel.com/resume.pdf"
+INDEX_URL = f"https://{PAUL_SITE.domain_names[0]}/"
+RESUME_URL = f"{INDEX_URL}{RESUME_KEY}"
 
 META_REFRESH_RE = re.compile(
     r'<meta\s+http-equiv=[\"\']?refresh[\"\']?\s+content=[\"\']?\s*\d+\s*;\s*URL=[\"\']?([^\"\'>\s]+)[\"\']+\s*/>',
@@ -25,10 +25,9 @@ META_REFRESH_RE = re.compile(
 )
 
 URLS_META_REFRESH = {
-    "https://paul.bovbel.com/resume": "https://paul.bovbel.com/resume.pdf",
-    "https://paul.bovbel.com/resume/": "https://paul.bovbel.com/resume.pdf",
-    "https://paul.bovbel.com/meet": "https://doodle.com/bp/paulbovbel/meet",
-    "https://paul.bovbel.com/meet/": "https://doodle.com/bp/paulbovbel/meet",
+    url: target
+    for name, target in REDIRECTS.items()
+    for url in (f"{INDEX_URL}{name}", f"{INDEX_URL}{name}/")
 }
 
 # Domains that block automated requests or require authentication
@@ -100,7 +99,7 @@ def extract_html_links(html, base_url):
 def is_local_url(url):
     """Check if URL points to Paul Bovbel's site."""
     parsed = urlparse(url)
-    return parsed.netloc in {"paul.bovbel.com", "www.bovbel.com", "bovbel.com"}
+    return parsed.netloc in set(PAUL_SITE.domain_names)
 
 
 def check_link(url):

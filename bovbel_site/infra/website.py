@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from aws_cdk import CfnOutput, RemovalPolicy, Stack
 from aws_cdk import aws_certificatemanager as acm
 from aws_cdk import aws_cloudfront as cloudfront
@@ -12,23 +10,16 @@ from aws_cdk import aws_wafv2 as wafv2
 from constructs import Construct
 
 from bovbel_site.infra.domain import APEX_DOMAIN_NAME, HOSTED_ZONE_ID
+from bovbel_site.sites import StaticSite
 
 
 GITHUB_REPOSITORY = "paulbovbel/www.bovbel.com"
 GITHUB_BRANCH = "master"
 
 
-@dataclass(frozen=True)
-class SiteConfig:
-    bucket_name: str
-    domain_names: list[str]
-    role_name: str
-    account_id: str
-
-
 class WebsiteStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, config: SiteConfig, **kwargs):
-        super().__init__(scope, construct_id, **kwargs)
+    def __init__(self, scope: Construct, site: StaticSite, account_id: str, **kwargs):
+        super().__init__(scope, site.stack_name, **kwargs)
 
         zone = route53.HostedZone.from_hosted_zone_attributes(
             self,
@@ -40,7 +31,7 @@ class WebsiteStack(Stack):
         bucket = s3.Bucket(
             self,
             "WebsiteBucket",
-            bucket_name=config.bucket_name,
+            bucket_name=site.bucket_name,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             encryption=s3.BucketEncryption.S3_MANAGED,
             enforce_ssl=True,
@@ -55,7 +46,7 @@ class WebsiteStack(Stack):
             scope="CLOUDFRONT",
             visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
                 cloud_watch_metrics_enabled=True,
-                metric_name=f"{construct_id}-web-acl",
+                metric_name=f"{site.stack_name}-web-acl",
                 sampled_requests_enabled=True,
             ),
         )
@@ -64,8 +55,8 @@ class WebsiteStack(Stack):
         certificate = acm.Certificate(
             self,
             "Certificate",
-            domain_name=config.domain_names[0],
-            subject_alternative_names=config.domain_names[1:],
+            domain_name=site.domain_names[0],
+            subject_alternative_names=site.domain_names[1:],
             validation=acm.CertificateValidation.from_dns(zone),
         )
 
@@ -73,7 +64,7 @@ class WebsiteStack(Stack):
             self,
             "Distribution",
             default_root_object="index.html",
-            domain_names=config.domain_names,
+            domain_names=site.domain_names,
             certificate=certificate,
             default_behavior=cloudfront.BehaviorOptions(
                 origin=origins.S3BucketOrigin.with_origin_access_control(bucket),
@@ -88,7 +79,7 @@ class WebsiteStack(Stack):
             web_acl_id=web_acl.attr_arn,
         )
 
-        for index, domain_name in enumerate(config.domain_names):
+        for index, domain_name in enumerate(site.domain_names):
             target = route53.RecordTarget.from_alias(targets.CloudFrontTarget(distribution))
             route53.ARecord(
                 self,
@@ -105,11 +96,11 @@ class WebsiteStack(Stack):
                 target=target,
             )
 
-        oidc_provider_arn = f"arn:aws:iam::{config.account_id}:oidc-provider/token.actions.githubusercontent.com"
+        oidc_provider_arn = f"arn:aws:iam::{account_id}:oidc-provider/token.actions.githubusercontent.com"
         deploy_role = iam.Role(
             self,
             "DeployRole",
-            role_name=config.role_name,
+            role_name=site.role_name,
             assumed_by=iam.FederatedPrincipal(
                 oidc_provider_arn,
                 conditions={
@@ -150,7 +141,7 @@ class WebsiteStack(Stack):
         )
 
         CfnOutput(self, "BucketName", value=bucket.bucket_name)
-        CfnOutput(self, "DomainNames", value=",".join(config.domain_names))
+        CfnOutput(self, "DomainNames", value=",".join(site.domain_names))
         CfnOutput(self, "DistributionId", value=distribution.distribution_id)
         CfnOutput(self, "DistributionDomainName", value=distribution.distribution_domain_name)
         CfnOutput(self, "DeployRoleArn", value=deploy_role.role_arn)

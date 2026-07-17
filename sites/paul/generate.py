@@ -1,8 +1,9 @@
-import shutil
 from functools import cache
 from pathlib import Path
 
 import requests
+
+from bovbel_site.build import prepare_output
 
 
 SITE_DIR = Path(__file__).parent
@@ -52,9 +53,7 @@ def redirect_keys(name):
 
 
 def build(output_dir):
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
-    shutil.copytree(STATIC_DIR, output_dir)
+    prepare_output(output_dir, STATIC_DIR)
 
     (output_dir / RESUME_KEY).write_bytes(get_resume_pdf())
 

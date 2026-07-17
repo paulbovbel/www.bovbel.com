@@ -39,7 +39,7 @@ bovbel_site/infra/      CDK stacks
 
 Sites are generated into `sites/<site>/build/` before local preview or deploy.
 
-`deploy.py` maps CDK stacks to site sources:
+`bovbel_site/deploy.py` maps CDK stacks to site sources:
 
 ```text
 paul-bovbel-com      -> sites/paul/build/

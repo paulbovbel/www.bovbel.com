@@ -1,7 +1,8 @@
 import html
-import shutil
 import tomllib
 from pathlib import Path
+
+from bovbel_site.build import prepare_output
 
 
 SITE_DIR = Path(__file__).parent
@@ -21,12 +22,7 @@ def output_path(output_dir, slug):
 
 
 def build(output_dir):
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
-    output_dir.mkdir(parents=True)
-
-    if STATIC_DIR.exists():
-        shutil.copytree(STATIC_DIR, output_dir, dirs_exist_ok=True)
+    prepare_output(output_dir, STATIC_DIR)
 
     pages = tomllib.loads((CONTENT_DIR / "pages.toml").read_text())
     template = (TEMPLATE_DIR / "page.html").read_text()
