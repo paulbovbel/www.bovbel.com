@@ -11,16 +11,38 @@
 <body>
   <main>
     <section class="hero" aria-labelledby="site-title">
-      <p class="eyebrow"> Donec ullamcorper ligula</p>
+      <p class="eyebrow">Small-batch ceramics</p>
       <h1 id="site-title">Rebecca Bovbel</h1>
       <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
     </section>
 
-    <section class="gallery" aria-label="Available pieces" data-gallery>
-      <section class="empty-gallery" aria-label="Gallery status">
-        <p data-gallery-status>Loading available pieces...</p>
+    <div class="studio-layout">
+      <section class="artist-panel" aria-labelledby="artist-title">
+        <img class="artist-photo" src="/images/rebecca-bovbel.jpg" alt="Rebecca Bovbel with ceramic pieces at a market display">
+        <div class="artist-copy">
+          <p class="section-kicker">About the artist</p>
+          <h2 id="artist-title">Rebecca Bovbel</h2>
+          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante venenatis dapibus posuere velit aliquet.</p>
+          <p>Donec sed odio dui. Curabitur blandit tempus porttitor. Praesent commodo cursus magna, vel scelerisque nisl consectetur et.</p>
+        </div>
       </section>
-    </section>
+
+      <section class="shop-panel" aria-labelledby="shop-title">
+        <header class="section-heading">
+          <div>
+            <p class="section-kicker">Gallery shop</p>
+            <h2 id="shop-title">Available pieces</h2>
+          </div>
+          <p>Local pickup only.</p>
+        </header>
+
+        <section class="gallery" aria-label="Available pieces" data-gallery>
+          <section class="empty-gallery" aria-label="Gallery status">
+            <p data-gallery-status>Loading available pieces...</p>
+          </section>
+        </section>
+      </section>
+    </div>
 
     <aside class="checkout-bar" aria-label="Checkout">
       <div>
