@@ -35,24 +35,15 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-
-    - name: Set up Python
-      run: uv python install 3.11
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-
-    - name: Install CDK CLI
-      run: npm install -g aws-cdk
+    - name: Install Nix
+      uses: cachix/install-nix-action@v27
 
     - name: Install dependencies
-      run: uv sync
+      run: nix develop --command uv sync
 
     - name: Run pre-deploy tests
       if: matrix.run_tests
-      run: uv run pytest test.py -v -m pre_deploy --junit-xml=results-pre-deploy-${{ matrix.stack }}.xml
+      run: nix develop --command uv run pytest tests -v -m pre_deploy --junit-xml=results-pre-deploy-${{ matrix.stack }}.xml
 
     - name: Publish pre-deploy test results
       uses: mikepenz/action-junit-report@v6
@@ -69,11 +60,11 @@ jobs:
         aws-region: us-east-1
 
     - name: Deploy stack
-      run: cdk deploy --require-approval never ${{ matrix.stack }}
+      run: nix develop --command cdk deploy --require-approval never ${{ matrix.stack }}
 
     - name: Run post-deploy tests
       if: matrix.run_tests
-      run: uv run pytest test.py -v -m post_deploy --junit-xml=results-post-deploy-${{ matrix.stack }}.xml
+      run: nix develop --command uv run pytest tests -v -m post_deploy --junit-xml=results-post-deploy-${{ matrix.stack }}.xml
 
     - name: Publish post-deploy test results
       uses: mikepenz/action-junit-report@v6

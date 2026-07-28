@@ -9,7 +9,7 @@ Personal website deployment
 nix develop
 uv sync
 
-uv run pytest test.py
+uv run pytest tests
 uv run serve-site --site paul
 ```
 
