@@ -7,6 +7,7 @@ from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_route53 as route53
 from aws_cdk import aws_route53_targets as targets
 from aws_cdk import aws_s3 as s3
+from aws_cdk import aws_s3_deployment as s3deploy
 from aws_cdk import aws_secretsmanager as secretsmanager
 from aws_cdk import aws_wafv2 as wafv2
 from constructs import Construct
@@ -17,6 +18,20 @@ from bovbel_site.sites import LambdaBehavior, StaticSite
 
 GITHUB_REPOSITORY = "paulbovbel/www.bovbel.com"
 GITHUB_BRANCH = "master"
+URL_REWRITE_FUNCTION_CODE = """
+function handler(event) {
+    var request = event.request;
+    var uri = request.uri;
+
+    if (uri.slice(-1) === '/') {
+        request.uri = uri + 'index.html';
+    } else if (uri.split('/').pop().indexOf('.') === -1) {
+        request.uri = uri + '/index.html';
+    }
+
+    return request;
+}
+""".strip()
 
 
 def construct_id(value):
@@ -67,6 +82,11 @@ class WebsiteStack(Stack):
         )
 
         additional_behaviors = self.lambda_behaviors(site)
+        url_rewrite_function = cloudfront.Function(
+            self,
+            "UrlRewriteFunction",
+            code=cloudfront.FunctionCode.from_inline(URL_REWRITE_FUNCTION_CODE),
+        )
 
         distribution = cloudfront.Distribution(
             self,
@@ -80,6 +100,12 @@ class WebsiteStack(Stack):
                 allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,
                 cached_methods=cloudfront.CachedMethods.CACHE_GET_HEAD,
                 cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                function_associations=[
+                    cloudfront.FunctionAssociation(
+                        event_type=cloudfront.FunctionEventType.VIEWER_REQUEST,
+                        function=url_rewrite_function,
+                    )
+                ],
             ),
             enable_ipv6=True,
             http_version=cloudfront.HttpVersion.HTTP2,
@@ -100,6 +126,16 @@ class WebsiteStack(Stack):
                     ttl=Duration.minutes(5),
                 ),
             ],
+        )
+
+        s3deploy.BucketDeployment(
+            self,
+            "WebsiteDeployment",
+            sources=[s3deploy.Source.asset(str(site.output_dir))],
+            destination_bucket=bucket,
+            distribution=distribution,
+            distribution_paths=["/*"],
+            prune=True,
         )
 
         for index, domain_name in enumerate(site.domain_names):
@@ -144,21 +180,9 @@ class WebsiteStack(Stack):
         )
         deploy_role.add_to_policy(
             iam.PolicyStatement(
-                actions=["s3:ListBucket"],
-                resources=[bucket.bucket_arn],
-            )
-        )
-        deploy_role.add_to_policy(
-            iam.PolicyStatement(
-                actions=["s3:PutObject", "s3:DeleteObject"],
-                resources=[bucket.arn_for_objects("*")],
-            )
-        )
-        deploy_role.add_to_policy(
-            iam.PolicyStatement(
-                actions=["cloudfront:CreateInvalidation"],
+                actions=["sts:AssumeRole"],
                 resources=[
-                    f"arn:aws:cloudfront::{self.account}:distribution/{distribution.distribution_id}"
+                    f"arn:aws:iam::{self.account}:role/cdk-hnb659fds-*{self.account}-{self.region}"
                 ],
             )
         )

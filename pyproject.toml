@@ -4,7 +4,6 @@ version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "boto3",
-    "botocore[crt]",
     "requests",
     "pytest",
     "pymupdf",
@@ -13,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-deploy-site = "bovbel_site.deploy:main"
+serve-site = "bovbel_site.local:serve_main"
 
 [build-system]
 requires = ["hatchling"]

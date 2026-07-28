@@ -41,6 +41,12 @@ jobs:
     - name: Set up Python
       run: uv python install 3.11
 
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+
+    - name: Install CDK CLI
+      run: npm install -g aws-cdk
+
     - name: Install dependencies
       run: uv sync
 
@@ -60,10 +66,10 @@ jobs:
       uses: aws-actions/configure-aws-credentials@v5
       with:
         role-to-assume: arn:aws:iam::713134244406:role/${{ matrix.role }}
-        aws-region: us-east-2
+        aws-region: us-east-1
 
-    - name: Upload to S3
-      run: uv run deploy-site --stack ${{ matrix.stack }}
+    - name: Deploy stack
+      run: cdk deploy --require-approval never ${{ matrix.stack }}
 
     - name: Run post-deploy tests
       if: matrix.run_tests

@@ -4,7 +4,7 @@ from aws_cdk import App
 from bovbel_site.infra.domain import DomainStack
 from bovbel_site.infra.mail import MailStack
 from bovbel_site.infra.website import WebsiteStack
-from bovbel_site.sites import STATIC_SITES
+from bovbel_site.sites import STATIC_SITES, build_site
 
 
 ACCOUNT_ID = "713134244406"
@@ -13,6 +13,7 @@ ENV = {"account": ACCOUNT_ID, "region": "us-east-1"}
 
 app = App()
 for site in STATIC_SITES:
+    build_site(site)
     WebsiteStack(
         app,
         site,

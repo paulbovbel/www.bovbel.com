@@ -10,19 +10,17 @@ nix develop
 uv sync
 
 uv run pytest test.py
-uv run deploy-site --site paul
-uv run deploy-site --serve --site paul
+uv run serve-site --site paul
 ```
 
 To preview Rebecca's site locally:
 
 ```bash
 export SQUARE_ACCESS_TOKEN=...
-uv run deploy-site --site rebecca
-uv run deploy-site --serve --site rebecca
+uv run serve-site --site rebecca
 ```
 
-The dev server builds and serves `sites/rebecca/build`, then dispatches
+`serve-site` builds and serves `sites/rebecca/build`, then dispatches
 `/api/catalog` and `/api/checkout` to the local Lambda handlers.
 
 Rebecca's gallery is loaded from `/api/catalog`, which reads Square catalog items
@@ -41,24 +39,21 @@ Static site source lives under `sites/<site>/`:
 
 ```text
 sites/paul/static/      paul.bovbel.com source files
-sites/paul/generate.py  paul.bovbel.com generator
 sites/common/           shared static files copied into every site
 sites/rebecca/static/   rebecca.bovbel.com static assets
 sites/rebecca/api/      rebecca.bovbel.com Lambda handlers
-sites/rebecca/dev_server.py rebecca.bovbel.com local API/static server
 bovbel_site/sites.py    shared site config and build helpers
-bovbel_site/deploy.py   deployment CLI implementation
+bovbel_site/local.py    local build and preview CLIs
 bovbel_site/infra/      CDK stacks
 ```
 
-Sites are generated into `sites/<site>/build/` before local preview or deploy.
+Sites are generated into `sites/<site>/build/` before local preview or CDK deploy.
 
-A site generator can also export optional Lambda Function URL behaviors for CDK
-by defining `lambda_functions`, a list of `bovbel_site.sites.LambdaBehavior`
-values. The website stack publishes each function behind the site's CloudFront
-distribution at the requested path pattern.
+Site config in `bovbel_site/sites.py` can define external resources, redirects,
+and optional Lambda Function URL behaviors. The website stack publishes each
+Lambda behind the site's CloudFront distribution at the requested path pattern.
 
-`bovbel_site/deploy.py` maps CDK stacks to site sources:
+CDK deploys each generated site build directory to its S3 bucket:
 
 ```text
 paul-bovbel-com      -> sites/paul/build/
@@ -75,11 +70,11 @@ uv sync
 
 export AWS_PROFILE=personal-admin
 cdk bootstrap aws://713134244406/us-east-1
-cdk deploy --profile personal-admin paul-bovbel-com rebecca-bovbel-com --outputs-file cdk-outputs.json
-
-uv run deploy-site --profile personal-admin --stack paul-bovbel-com
-uv run deploy-site --profile personal-admin --stack rebecca-bovbel-com
+cdk deploy --profile personal-admin paul-bovbel-com rebecca-bovbel-com
 ```
+
+Run the CDK deploy with `personal-admin` after changing deployment permissions;
+subsequent GitHub Actions runs deploy site contents through CDK.
 
 ## Updating Dependencies
 
