@@ -1,13 +1,34 @@
-import mimetypes
-import runpy
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from bovbel_site.build import prepare_output
+import requests
 
 
 ROOT_DIR = Path(__file__).parent.parent
 SITES_DIR = ROOT_DIR / "sites"
+COMMON_STATIC_DIR = SITES_DIR / "common"
+RESUME_URL = "https://docs.google.com/document/d/1sXhQBVv2Xy5NoTsg4JvHLNmKrbC5PgRNghsUXqPWh0A/export?format=pdf"
+REDIRECT_TEMPLATE = """\
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-57Q5PWFEVM"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){{dataLayer.push(arguments);}}
+    gtag('js', new Date());
+    gtag('config', 'G-57Q5PWFEVM');
+  </script>
+  <title>{title} - {name}</title>
+  <meta http-equiv="refresh" content="0;URL={target}" />
+</head>
+<body>
+  <p>Redirecting to <a href="{target}">{target}</a>.</p>
+</body>
+</html>
+"""
 
 
 @dataclass(frozen=True)
@@ -32,7 +53,8 @@ class StaticSite:
     role_name: str
     static_dir: Path
     output_dir: Path
-    generator_script: Path | None = None
+    redirects: dict[str, str] = field(default_factory=dict)
+    external_resources: dict[str, str] = field(default_factory=dict)
     lambda_functions: list[LambdaBehavior] = field(default_factory=list)
 
 
@@ -46,7 +68,11 @@ STATIC_SITES = [
         role_name="paul-bovbel-com-deploy",
         static_dir=SITES_DIR / "paul" / "static",
         output_dir=SITES_DIR / "paul" / "build",
-        generator_script=SITES_DIR / "paul" / "generate.py",
+        redirects={
+            "meet": "https://doodle.com/bp/paulbovbel/meet",
+            "resume": "https://paul.bovbel.com/resume.pdf",
+        },
+        external_resources={"resume.pdf": RESUME_URL},
     ),
     StaticSite(
         name="rebecca",
@@ -96,33 +122,31 @@ def site_for_stack(stack_name):
     return SITES_BY_STACK[stack_name]
 
 
-def generate_site(site):
-    if site.generator_script:
-        namespace = runpy.run_path(str(site.generator_script))
-        namespace["build"](site.output_dir)
-        return
+def prepare_output(output_dir, static_dir=None):
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True)
 
-    prepare_output(site.output_dir, site.static_dir)
+    if COMMON_STATIC_DIR.exists():
+        shutil.copytree(COMMON_STATIC_DIR, output_dir, dirs_exist_ok=True)
 
-
-def site_files(site):
-    for file_path in site.output_dir.rglob("*"):
-        if file_path.is_file():
-            relative_path = file_path.relative_to(site.output_dir)
-            key = relative_path.as_posix()
-            yield file_path, key
-
-            if file_path.name == "index.html" and relative_path.parent != Path("."):
-                directory_key = relative_path.parent.as_posix()
-                yield file_path, directory_key
-                yield file_path, f"{directory_key}/"
-
-
-def content_type_args(file_path):
-    content_type, _ = mimetypes.guess_type(str(file_path))
-    return {"ContentType": content_type} if content_type else {}
+    if static_dir and static_dir.exists():
+        shutil.copytree(static_dir, output_dir, dirs_exist_ok=True)
 
 
 def build_site(site):
-    generate_site(site)
-    print(f"Built site in {site.output_dir}")
+    prepare_output(site.output_dir, site.static_dir)
+
+    for key, url in site.external_resources.items():
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        path = site.output_dir / key
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(response.content)
+
+    for name, target in site.redirects.items():
+        html = REDIRECT_TEMPLATE.format(title=site.title, name=name.capitalize(), target=target)
+        for key in (f"{name}.html", f"{name}/index.html"):
+            path = site.output_dir / key
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(html)

@@ -4,17 +4,19 @@ import pytest
 import re
 import io
 from dataclasses import replace
+from functools import cache
 from html.parser import HTMLParser
 from urllib.parse import urlparse
 
 import fitz  # PyMuPDF
+from aws_cdk import App, assertions
 
-from bovbel_site.sites import SITES_BY_NAME, site_files
-from sites.paul.generate import REDIRECTS, get_resume_pdf
+from bovbel_site.infra.website import URL_REWRITE_FUNCTION_CODE, WebsiteStack
+from bovbel_site.sites import SITES_BY_NAME
 
 REQUEST_TIMEOUT = 10
 PAUL_SITE = SITES_BY_NAME["paul"]
-STATIC_DIR = PAUL_SITE.generator_script.parent / "static"
+STATIC_DIR = PAUL_SITE.static_dir
 RESUME_KEY = "resume.pdf"
 
 INDEX_URL = f"https://{PAUL_SITE.domain_names[0]}/"
@@ -27,7 +29,7 @@ META_REFRESH_RE = re.compile(
 
 URLS_META_REFRESH = {
     url: target
-    for name, target in REDIRECTS.items()
+    for name, target in PAUL_SITE.redirects.items()
     for url in (f"{INDEX_URL}{name}", f"{INDEX_URL}{name}/")
 }
 
@@ -49,6 +51,13 @@ def http_get(url, allow_redirects=False):
 def http_head(url, allow_redirects=True):
     """Make a HEAD request with consistent parameters."""
     return requests.head(url, allow_redirects=allow_redirects, timeout=REQUEST_TIMEOUT)
+
+
+@cache
+def get_resume_pdf():
+    response = requests.get(PAUL_SITE.external_resources[RESUME_KEY], timeout=30)
+    response.raise_for_status()
+    return response.content
 
 
 def should_skip_url(url):
@@ -187,18 +196,38 @@ def test_local_resume_links_valid():
         assert check_link(url), f"Link {url} is not valid"
 
 
-def test_site_files_uploads_directory_index_aliases(tmp_path):
+def test_cloudfront_rewrites_directory_urls(tmp_path):
+    assert "uri + 'index.html'" in URL_REWRITE_FUNCTION_CODE
+    assert "uri + '/index.html'" in URL_REWRITE_FUNCTION_CODE
+
     output_dir = tmp_path / "build"
-    (output_dir / "meet").mkdir(parents=True)
+    output_dir.mkdir()
     (output_dir / "index.html").write_text("home")
-    (output_dir / "meet" / "index.html").write_text("redirect")
-
     site = replace(PAUL_SITE, output_dir=output_dir)
-    keys = {key for _, key in site_files(site)}
 
-    assert "index.html" in keys
-    assert "" not in keys
-    assert {"meet/index.html", "meet", "meet/"} <= keys
+    app = App()
+    stack = WebsiteStack(
+        app,
+        site,
+        account_id="123456789012",
+        env={"account": "123456789012", "region": "us-east-1"},
+    )
+    resources = assertions.Template.from_stack(stack).to_json()["Resources"]
+
+    assert any(
+        resource["Type"] == "AWS::CloudFront::Function"
+        and "index.html" in resource["Properties"]["FunctionCode"]
+        for resource in resources.values()
+    )
+    assert any(resource["Type"] == "Custom::CDKBucketDeployment" for resource in resources.values())
+
+    distributions = [
+        resource for resource in resources.values() if resource["Type"] == "AWS::CloudFront::Distribution"
+    ]
+    function_associations = distributions[0]["Properties"]["DistributionConfig"]["DefaultCacheBehavior"][
+        "FunctionAssociations"
+    ]
+    assert function_associations[0]["EventType"] == "viewer-request"
 
 
 # =============================================================================
