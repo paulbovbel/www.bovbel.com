@@ -108,7 +108,14 @@ def generate_site(site):
 def site_files(site):
     for file_path in site.output_dir.rglob("*"):
         if file_path.is_file():
-            yield file_path, file_path.relative_to(site.output_dir).as_posix()
+            relative_path = file_path.relative_to(site.output_dir)
+            key = relative_path.as_posix()
+            yield file_path, key
+
+            if file_path.name == "index.html" and relative_path.parent != Path("."):
+                directory_key = relative_path.parent.as_posix()
+                yield file_path, directory_key
+                yield file_path, f"{directory_key}/"
 
 
 def content_type_args(file_path):

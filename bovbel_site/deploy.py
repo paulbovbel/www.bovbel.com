@@ -106,11 +106,12 @@ def cdk_outputs(stack_name):
     return stack_outputs
 
 
-def upload(site, bucket_name, distribution_id):
+def upload(site, bucket_name, distribution_id, profile_name=None):
     """Upload site content and invalidate CloudFront."""
     generate_site(site)
-    s3 = boto3.client("s3")
-    cloudfront = boto3.client("cloudfront")
+    session = boto3.Session(profile_name=profile_name)
+    s3 = session.client("s3")
+    cloudfront = session.client("cloudfront")
 
     upload_objects(site, s3, bucket_name)
     delete_stale_objects(site, s3, bucket_name)
@@ -185,6 +186,10 @@ def main():
         choices=sorted(SITES_BY_NAME),
         help="Static site to build or serve locally; deploy infers this from --stack when omitted",
     )
+    parser.add_argument(
+        "--profile",
+        help="AWS profile name to use for deployment",
+    )
     args = parser.parse_args()
 
     if args.serve:
@@ -200,7 +205,7 @@ def main():
     bucket_name = outputs["BucketName"]
     distribution_id = outputs["DistributionId"]
 
-    upload(site, bucket_name, distribution_id)
+    upload(site, bucket_name, distribution_id, args.profile)
     print("Done!")
 
 

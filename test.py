@@ -3,12 +3,13 @@ import requests
 import pytest
 import re
 import io
+from dataclasses import replace
 from html.parser import HTMLParser
 from urllib.parse import urlparse
 
 import fitz  # PyMuPDF
 
-from bovbel_site.sites import SITES_BY_NAME
+from bovbel_site.sites import SITES_BY_NAME, site_files
 from sites.paul.generate import REDIRECTS, get_resume_pdf
 
 REQUEST_TIMEOUT = 10
@@ -184,6 +185,20 @@ def test_local_resume_links_valid():
     """Test that each link in the Google Docs resume PDF is reachable."""
     for url in get_local_resume_links():
         assert check_link(url), f"Link {url} is not valid"
+
+
+def test_site_files_uploads_directory_index_aliases(tmp_path):
+    output_dir = tmp_path / "build"
+    (output_dir / "meet").mkdir(parents=True)
+    (output_dir / "index.html").write_text("home")
+    (output_dir / "meet" / "index.html").write_text("redirect")
+
+    site = replace(PAUL_SITE, output_dir=output_dir)
+    keys = {key for _, key in site_files(site)}
+
+    assert "index.html" in keys
+    assert "" not in keys
+    assert {"meet/index.html", "meet", "meet/"} <= keys
 
 
 # =============================================================================

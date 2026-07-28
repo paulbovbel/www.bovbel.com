@@ -75,14 +75,10 @@ uv sync
 
 export AWS_PROFILE=personal-admin
 cdk bootstrap aws://713134244406/us-east-1
-cdk deploy paul-bovbel-com rebecca-bovbel-com --outputs-file cdk-outputs.json
-uv run deploy-site --stack paul-bovbel-com
-```
+cdk deploy --profile personal-admin paul-bovbel-com rebecca-bovbel-com --outputs-file cdk-outputs.json
 
-To ship Rebecca's site after its stack is provisioned:
-
-```bash
-uv run deploy-site --stack rebecca-bovbel-com
+uv run deploy-site --profile personal-admin --stack paul-bovbel-com
+uv run deploy-site --profile personal-admin --stack rebecca-bovbel-com
 ```
 
 ## Updating Dependencies
