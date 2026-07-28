@@ -1,20 +1,26 @@
-from aws_cdk import CfnOutput, RemovalPolicy, Stack
+from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_certificatemanager as acm
 from aws_cdk import aws_cloudfront as cloudfront
 from aws_cdk import aws_cloudfront_origins as origins
 from aws_cdk import aws_iam as iam
+from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_route53 as route53
 from aws_cdk import aws_route53_targets as targets
 from aws_cdk import aws_s3 as s3
+from aws_cdk import aws_secretsmanager as secretsmanager
 from aws_cdk import aws_wafv2 as wafv2
 from constructs import Construct
 
 from bovbel_site.infra.domain import APEX_DOMAIN_NAME, HOSTED_ZONE_ID
-from bovbel_site.sites import StaticSite
+from bovbel_site.sites import LambdaBehavior, StaticSite
 
 
 GITHUB_REPOSITORY = "paulbovbel/www.bovbel.com"
 GITHUB_BRANCH = "master"
+
+
+def construct_id(value):
+    return "".join(character for character in value if character.isalnum())
 
 
 class WebsiteStack(Stack):
@@ -60,6 +66,8 @@ class WebsiteStack(Stack):
             validation=acm.CertificateValidation.from_dns(zone),
         )
 
+        additional_behaviors = self.lambda_behaviors(site)
+
         distribution = cloudfront.Distribution(
             self,
             "Distribution",
@@ -77,6 +85,21 @@ class WebsiteStack(Stack):
             http_version=cloudfront.HttpVersion.HTTP2,
             price_class=cloudfront.PriceClass.PRICE_CLASS_ALL,
             web_acl_id=web_acl.attr_arn,
+            additional_behaviors=additional_behaviors or None,
+            error_responses=[
+                cloudfront.ErrorResponse(
+                    http_status=403,
+                    response_http_status=404,
+                    response_page_path="/404.html",
+                    ttl=Duration.minutes(5),
+                ),
+                cloudfront.ErrorResponse(
+                    http_status=404,
+                    response_http_status=404,
+                    response_page_path="/404.html",
+                    ttl=Duration.minutes(5),
+                ),
+            ],
         )
 
         for index, domain_name in enumerate(site.domain_names):
@@ -146,3 +169,40 @@ class WebsiteStack(Stack):
         CfnOutput(self, "DistributionDomainName", value=distribution.distribution_domain_name)
         CfnOutput(self, "DeployRoleArn", value=deploy_role.role_arn)
         CfnOutput(self, "HostedZoneId", value=HOSTED_ZONE_ID)
+
+    def lambda_behaviors(self, site):
+        return {
+            config.path_pattern: self.lambda_behavior(config)
+            for config in site.lambda_functions
+        }
+
+    def lambda_behavior(self, config: LambdaBehavior):
+        function = lambda_.Function(
+            self,
+            config.id,
+            runtime=getattr(lambda_.Runtime, config.runtime),
+            handler=config.handler,
+            code=lambda_.Code.from_asset(str(config.asset_path)),
+            timeout=Duration.seconds(config.timeout_seconds),
+            environment=config.environment,
+        )
+
+        for secret_name in config.secret_names:
+            secret = secretsmanager.Secret.from_secret_name_v2(
+                self,
+                f"{config.id}{construct_id(secret_name)}Secret",
+                secret_name,
+            )
+            secret.grant_read(function)
+
+        function_url = function.add_function_url(
+            auth_type=lambda_.FunctionUrlAuthType.NONE,
+        )
+        return cloudfront.BehaviorOptions(
+            origin=origins.FunctionUrlOrigin(function_url),
+            viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            allowed_methods=cloudfront.AllowedMethods.ALLOW_ALL,
+            cached_methods=cloudfront.CachedMethods.CACHE_GET_HEAD,
+            cache_policy=cloudfront.CachePolicy.CACHING_DISABLED,
+            origin_request_policy=cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+        )

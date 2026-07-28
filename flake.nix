@@ -6,13 +6,10 @@
   outputs = {nixpkgs, ...}: let
     system = "x86_64-linux";
     pkgs = import nixpkgs {inherit system;};
-    cdk = pkgs.writeShellScriptBin "cdk" ''
-      exec npm exec --yes --package aws-cdk@2.1128.1 -- cdk "$@"
-    '';
   in {
     devShells.${system}.default = pkgs.mkShell {
       packages = [
-        cdk
+        pkgs.aws-cdk-cli
         pkgs.nodejs
         pkgs.uv
       ];

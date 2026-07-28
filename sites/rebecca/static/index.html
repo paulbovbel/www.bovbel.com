@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A small gallery of available pieces by Rebecca Bovbel.">
+  <title>Rebecca Bovbel</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/cart.js" defer></script>
+</head>
+<body>
+  <main>
+    <section class="hero" aria-labelledby="site-title">
+      <p class="eyebrow">Small-batch originals</p>
+      <h1 id="site-title">Rebecca Bovbel</h1>
+      <p>Quiet, tactile pieces for collected spaces. Available works are refreshed directly from the studio shop.</p>
+    </section>
+
+    <section class="gallery" aria-label="Available pieces" data-gallery>
+      <section class="empty-gallery" aria-label="Gallery status">
+        <p data-gallery-status>Loading available pieces...</p>
+      </section>
+    </section>
+
+    <aside class="checkout-bar" aria-label="Checkout">
+      <div>
+        <p class="cart-label">Selected</p>
+        <p class="cart-summary" data-cart-summary>No pieces selected.</p>
+      </div>
+      <button class="checkout-link" type="button" data-checkout disabled>Checkout</button>
+    </aside>
+  </main>
+</body>
+</html>

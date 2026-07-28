@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 import argparse
+import importlib
 import json
+import mimetypes
 import os
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import unquote
 
 import boto3
 
@@ -113,12 +117,64 @@ def upload(site, bucket_name, distribution_id):
     invalidate_cloudfront(cloudfront, distribution_id)
 
 
+def serve_local(site, host, port):
+    module_name = f"sites.{site.name}.dev_server"
+    try:
+        dev_server = importlib.import_module(module_name)
+    except ModuleNotFoundError as error:
+        if error.name == module_name:
+            serve_static(site, host, port)
+            return
+        raise
+
+    dev_server.serve(host=host, port=port)
+
+
+def serve_static(site, host, port):
+    build_site(site)
+    output_dir = site.output_dir.resolve()
+
+    class Handler(SimpleHTTPRequestHandler):
+        def do_GET(self):
+            path = unquote(self.path.split("?", 1)[0]).lstrip("/")
+            file_path = (output_dir / path).resolve() if path else output_dir / "index.html"
+            if file_path.is_dir():
+                file_path = file_path / "index.html"
+            status_code = 200
+            if not file_path.is_relative_to(output_dir) or not file_path.exists():
+                file_path = output_dir / "404.html"
+                status_code = 404
+
+            content = file_path.read_bytes()
+            content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+            self.send_response(status_code)
+            self.send_header("content-type", content_type)
+            self.send_header("content-length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"Serving {site.name} site at http://{host}:{port}")
+    server.serve_forever()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Deploy a static site")
     parser.add_argument(
-        "--local",
+        "--serve",
         action="store_true",
-        help="Build the site's generated output directory instead of deploying",
+        help="Build and serve the site locally, including site-specific API routes when available",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host for --serve",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port for --serve",
     )
     parser.add_argument(
         "--stack",
@@ -127,16 +183,17 @@ def main():
     parser.add_argument(
         "--site",
         choices=sorted(SITES_BY_NAME),
-        help="Static site to build locally; deploy infers this from --stack when omitted",
+        help="Static site to build or serve locally; deploy infers this from --stack when omitted",
     )
     args = parser.parse_args()
 
-    if args.local:
-        build_site(SITES_BY_NAME[args.site or "paul"])
+    if args.serve:
+        serve_local(SITES_BY_NAME[args.site or "paul"], args.host, args.port)
         return
 
     if not args.stack:
-        parser.error("--stack is required unless --local is used")
+        build_site(SITES_BY_NAME[args.site or "paul"])
+        return
 
     site = SITES_BY_NAME[args.site] if args.site else site_for_stack(args.stack)
     outputs = cdk_outputs(args.stack)
