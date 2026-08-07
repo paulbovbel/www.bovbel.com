@@ -1,4 +1,4 @@
-from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
+from aws_cdk import CfnOutput, DefaultStackSynthesizer, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_certificatemanager as acm
 from aws_cdk import aws_cloudfront as cloudfront
 from aws_cdk import aws_cloudfront_origins as origins
@@ -165,9 +165,6 @@ class WebsiteStack(Stack):
                 conditions={
                     "StringEquals": {
                         "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                        "token.actions.githubusercontent.com:job_workflow_ref": (
-                            f"{GITHUB_REPOSITORY}/.github/workflows/deploy.yml@refs/heads/{GITHUB_BRANCH}"
-                        ),
                     },
                     "StringLike": {
                         "token.actions.githubusercontent.com:sub": (
@@ -182,7 +179,17 @@ class WebsiteStack(Stack):
             iam.PolicyStatement(
                 actions=["sts:AssumeRole"],
                 resources=[
-                    f"arn:aws:iam::{self.account}:role/cdk-hnb659fds-*{self.account}-{self.region}"
+                    f"arn:aws:iam::{self.account}:role/cdk-{DefaultStackSynthesizer.DEFAULT_QUALIFIER}-*"
+                    f"{self.account}-{self.region}"
+                ],
+            )
+        )
+        deploy_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:aws:ssm:{self.region}:{self.account}:parameter/cdk-bootstrap/"
+                    f"{DefaultStackSynthesizer.DEFAULT_QUALIFIER}/version"
                 ],
             )
         )

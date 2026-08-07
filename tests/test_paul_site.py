@@ -8,13 +8,14 @@ from urllib.parse import urljoin, urlparse
 
 import pytest
 import requests
-from aws_cdk import App, assertions
+from aws_cdk import App, DefaultStackSynthesizer, assertions
 
 from bovbel_site.infra.website import URL_REWRITE_FUNCTION_CODE, WebsiteStack
 from bovbel_site.sites import SITES_BY_NAME, build_site
 
 
 REQUEST_TIMEOUT = 10
+REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0 link-checker; +https://paul.bovbel.com/"}
 PAUL_SITE = SITES_BY_NAME["paul"]
 STATIC_DIR = PAUL_SITE.static_dir
 RESUME_KEY = "resume.pdf"
@@ -56,12 +57,22 @@ class LinkExtractor(HTMLParser):
 
 
 def http_get(url, allow_redirects=False):
-    return requests.get(url, allow_redirects=allow_redirects, timeout=REQUEST_TIMEOUT)
+    return requests.get(
+        url,
+        allow_redirects=allow_redirects,
+        headers=REQUEST_HEADERS,
+        timeout=REQUEST_TIMEOUT,
+    )
 
 
 def http_head(url):
-    response = requests.head(url, allow_redirects=True, timeout=REQUEST_TIMEOUT)
-    if response.status_code == 405:
+    response = requests.head(
+        url,
+        allow_redirects=True,
+        headers=REQUEST_HEADERS,
+        timeout=REQUEST_TIMEOUT,
+    )
+    if response.status_code >= 400:
         response = http_get(url, allow_redirects=True)
     return response
 
@@ -183,6 +194,33 @@ def test_cloudfront_rewrites_directory_urls(tmp_path):
         for resource in resources.values()
     )
     assert any(resource["Type"] == "Custom::CDKBucketDeployment" for resource in resources.values())
+
+    deploy_role = next(
+        resource
+        for resource in resources.values()
+        if resource["Type"] == "AWS::IAM::Role" and resource["Properties"].get("RoleName") == PAUL_SITE.role_name
+    )
+    conditions = deploy_role["Properties"]["AssumeRolePolicyDocument"]["Statement"][0]["Condition"]
+    assert conditions == {
+        "StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com"},
+        "StringLike": {
+            "token.actions.githubusercontent.com:sub": "repo:paulbovbel/www.bovbel.com:ref:refs/heads/master"
+        },
+    }
+
+    deploy_policy = next(
+        resource
+        for resource in resources.values()
+        if resource["Type"] == "AWS::IAM::Policy"
+        and resource["Properties"]["PolicyName"].startswith("DeployRoleDefaultPolicy")
+    )
+    policy_statements = deploy_policy["Properties"]["PolicyDocument"]["Statement"]
+    qualifier = DefaultStackSynthesizer.DEFAULT_QUALIFIER
+    assert {
+        "Action": "ssm:GetParameter",
+        "Effect": "Allow",
+        "Resource": f"arn:aws:ssm:us-east-1:123456789012:parameter/cdk-bootstrap/{qualifier}/version",
+    } in policy_statements
 
     distributions = [
         resource for resource in resources.values() if resource["Type"] == "AWS::CloudFront::Distribution"
