@@ -10,6 +10,7 @@
     devShells.${system}.default = pkgs.mkShell {
       packages = [
         pkgs.aws-cdk-cli
+        pkgs.git-lfs
         pkgs.nodejs
         pkgs.uv
       ];
