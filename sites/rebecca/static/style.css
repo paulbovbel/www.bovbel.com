@@ -108,6 +108,11 @@ p {
   padding: clamp(1.2rem, 3vw, 1.65rem);
 }
 
+.artist-panel > picture {
+  display: block;
+  min-height: 100%;
+}
+
 .artist-photo {
   display: block;
   width: 100%;

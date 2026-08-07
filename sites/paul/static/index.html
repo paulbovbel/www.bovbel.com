@@ -112,7 +112,13 @@
 <body>
   <main class="container">
     <section class="profile" aria-labelledby="site-title">
-      <img class="avatar" src="/images/paul-bovbel.jpg" alt="Paul Bovbel">
+      <picture>
+        <source
+          type="image/webp"
+          srcset="/images/paul-bovbel-220.webp 220w, /images/paul-bovbel-440.webp 440w"
+          sizes="220px">
+        <img class="avatar" src="/images/paul-bovbel.jpg" alt="Paul Bovbel" width="220" height="220">
+      </picture>
       <h1 id="site-title">Paul Bovbel</h1>
 
       <nav class="links" aria-label="Profile links">
