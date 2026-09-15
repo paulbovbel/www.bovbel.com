@@ -63,6 +63,12 @@ DOMAIN_DNS_RECORDS = [
         type="CNAME",
         values=["_acme-challenge.s8bl8plici16s4h043gl5tfrb2spka7d.ui.nabu.casa"],
     ),
+    DnsRecord(
+        id="NixConfigCnameRecord",
+        name="nix-config.bovbel.com",
+        type="CNAME",
+        values=["paulbovbel.github.io"],
+    ),
 ]
 
 
