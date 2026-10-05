@@ -15,3 +15,11 @@ updates:
     groups:
       python:
         patterns: ['*']
+
+  - package-ecosystem: nix
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      nix:
+        patterns: ['*']
