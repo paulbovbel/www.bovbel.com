@@ -12,7 +12,8 @@ dependencies = [
 ]
 
 [project.scripts]
-serve-site = "bovbel_site.local:serve_main"
+serve-site = "bovbel_site.websites.local:serve_main"
+build-site = "bovbel_site.websites.local:build_main"
 
 [build-system]
 requires = ["hatchling"]
@@ -22,7 +23,10 @@ build-backend = "hatchling.build"
 packages = ["bovbel_site"]
 
 [tool.pytest.ini_options]
+addopts = "-m 'not post_deploy and not external and not build_artifact' --strict-markers"
 markers = [
     "pre_deploy: tests that run before deployment (local files)",
     "post_deploy: tests that run after deployment (live site)",
+    "external: scheduled third-party link checks",
+    "build_artifact: checks against the exact site output prepared for deployment",
 ]

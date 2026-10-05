@@ -1,12 +1,12 @@
-from dataclasses import dataclass
-
-from aws_cdk import CfnOutput, RemovalPolicy, Stack
-from aws_cdk import aws_route53 as route53
+from aws_cdk import CfnOutput, Stack
 from constructs import Construct
 
+from bovbel_site.shared.config import APEX_DOMAIN_NAME, HOSTED_ZONE_ID
+from bovbel_site.shared.deployment import create_github_deploy_role
+from bovbel_site.shared.dns import DnsRecord, create_dns_records
 
-APEX_DOMAIN_NAME = "bovbel.com"
-HOSTED_ZONE_ID = "ZJMZZCLW5S6T9"
+
+DNS_DEPLOY_ROLE_NAME = "bovbel-com-dns-deploy"
 # bovbel.com is registered in Route53 Domains and delegated to this public hosted zone.
 HOSTED_ZONE_NAME_SERVERS = [
     "ns-565.awsdns-06.net",
@@ -14,15 +14,6 @@ HOSTED_ZONE_NAME_SERVERS = [
     "ns-276.awsdns-34.com",
     "ns-1980.awsdns-55.co.uk",
 ]
-
-
-@dataclass(frozen=True)
-class DnsRecord:
-    id: str
-    name: str
-    type: str
-    values: list[str]
-    ttl: int = 300
 
 
 DOMAIN_DNS_RECORDS = [
@@ -72,30 +63,13 @@ DOMAIN_DNS_RECORDS = [
 ]
 
 
-def create_dns_record(scope: Construct, record: DnsRecord):
-    resource = route53.CfnRecordSet(
-        scope,
-        record.id,
-        hosted_zone_id=HOSTED_ZONE_ID,
-        name=f"{record.name}.",
-        type=record.type,
-        ttl=str(record.ttl),
-        resource_records=record.values,
-    )
-
-    resource.apply_removal_policy(RemovalPolicy.RETAIN)
-    return resource
-
-
-def create_dns_records(scope: Construct, records: list[DnsRecord]):
-    return [create_dns_record(scope, record) for record in records]
-
-
 class DomainStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, **kwargs):
+    def __init__(self, scope: Construct, construct_id: str, account_id: str, **kwargs):
         super().__init__(scope, construct_id, **kwargs)
 
         create_dns_records(self, DOMAIN_DNS_RECORDS)
+        deploy_role = create_github_deploy_role(self, account_id, DNS_DEPLOY_ROLE_NAME)
 
         CfnOutput(self, "DomainName", value=APEX_DOMAIN_NAME)
+        CfnOutput(self, "DeployRoleArn", value=deploy_role.role_arn)
         CfnOutput(self, "HostedZoneId", value=HOSTED_ZONE_ID)

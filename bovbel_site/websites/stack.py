@@ -1,8 +1,7 @@
-from aws_cdk import CfnOutput, DefaultStackSynthesizer, Duration, RemovalPolicy, Stack
+from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_certificatemanager as acm
 from aws_cdk import aws_cloudfront as cloudfront
 from aws_cdk import aws_cloudfront_origins as origins
-from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_route53 as route53
 from aws_cdk import aws_route53_targets as targets
@@ -12,12 +11,11 @@ from aws_cdk import aws_secretsmanager as secretsmanager
 from aws_cdk import aws_wafv2 as wafv2
 from constructs import Construct
 
-from bovbel_site.infra.domain import APEX_DOMAIN_NAME, HOSTED_ZONE_ID
-from bovbel_site.sites import LambdaBehavior, StaticSite
+from bovbel_site.shared.config import APEX_DOMAIN_NAME, HOSTED_ZONE_ID
+from bovbel_site.shared.deployment import create_github_deploy_role
+from bovbel_site.websites.sites import LambdaBehavior, StaticSite
 
 
-GITHUB_REPOSITORY = "paulbovbel/www.bovbel.com"
-GITHUB_BRANCH = "master"
 URL_REWRITE_FUNCTION_CODE = """
 function handler(event) {
     var request = event.request;
@@ -155,44 +153,7 @@ class WebsiteStack(Stack):
                 target=target,
             )
 
-        oidc_provider_arn = f"arn:aws:iam::{account_id}:oidc-provider/token.actions.githubusercontent.com"
-        deploy_role = iam.Role(
-            self,
-            "DeployRole",
-            role_name=site.role_name,
-            assumed_by=iam.FederatedPrincipal(
-                oidc_provider_arn,
-                conditions={
-                    "StringEquals": {
-                        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                    },
-                    "StringLike": {
-                        "token.actions.githubusercontent.com:sub": (
-                            f"repo:{GITHUB_REPOSITORY}:ref:refs/heads/{GITHUB_BRANCH}"
-                        ),
-                    },
-                },
-                assume_role_action="sts:AssumeRoleWithWebIdentity",
-            ),
-        )
-        deploy_role.add_to_policy(
-            iam.PolicyStatement(
-                actions=["sts:AssumeRole"],
-                resources=[
-                    f"arn:aws:iam::{self.account}:role/cdk-{DefaultStackSynthesizer.DEFAULT_QUALIFIER}-*"
-                    f"{self.account}-{self.region}"
-                ],
-            )
-        )
-        deploy_role.add_to_policy(
-            iam.PolicyStatement(
-                actions=["ssm:GetParameter"],
-                resources=[
-                    f"arn:aws:ssm:{self.region}:{self.account}:parameter/cdk-bootstrap/"
-                    f"{DefaultStackSynthesizer.DEFAULT_QUALIFIER}/version"
-                ],
-            )
-        )
+        deploy_role = create_github_deploy_role(self, account_id, site.role_name)
 
         CfnOutput(self, "BucketName", value=bucket.bucket_name)
         CfnOutput(self, "DomainNames", value=",".join(site.domain_names))
@@ -213,7 +174,9 @@ class WebsiteStack(Stack):
             config.id,
             runtime=getattr(lambda_.Runtime, config.runtime),
             handler=config.handler,
-            code=lambda_.Code.from_asset(str(config.asset_path)),
+            code=lambda_.Code.from_asset(
+                str(config.asset_path), exclude=["__pycache__", "*.pyc"]
+            ),
             timeout=Duration.seconds(config.timeout_seconds),
             environment=config.environment,
         )

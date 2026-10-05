@@ -5,7 +5,7 @@ from pathlib import Path
 import requests
 
 
-ROOT_DIR = Path(__file__).parent.parent
+ROOT_DIR = Path(__file__).resolve().parents[2]
 SITES_DIR = ROOT_DIR / "sites"
 COMMON_STATIC_DIR = SITES_DIR / "common"
 RESUME_URL = "https://docs.google.com/document/d/1sXhQBVv2Xy5NoTsg4JvHLNmKrbC5PgRNghsUXqPWh0A/export?format=pdf"
@@ -87,8 +87,8 @@ STATIC_SITES = [
             LambdaBehavior(
                 id="CatalogFunction",
                 path_pattern="api/catalog",
-                asset_path=SITES_DIR / "rebecca",
-                handler="api.catalog.handler",
+                asset_path=SITES_DIR / "rebecca" / "api",
+                handler="catalog.handler",
                 environment={
                     "SQUARE_ACCESS_TOKEN_SECRET_NAME": "rebecca/square/access-token",
                     "SQUARE_API_VERSION": "2026-07-16",
@@ -98,8 +98,8 @@ STATIC_SITES = [
             LambdaBehavior(
                 id="CheckoutFunction",
                 path_pattern="api/checkout",
-                asset_path=SITES_DIR / "rebecca",
-                handler="api.checkout.handler",
+                asset_path=SITES_DIR / "rebecca" / "api",
+                handler="checkout.handler",
                 environment={
                     "SQUARE_ACCESS_TOKEN_SECRET_NAME": "rebecca/square/access-token",
                     "SQUARE_API_VERSION": "2026-07-16",

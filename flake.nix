@@ -9,6 +9,7 @@
   in {
     devShells.${system}.default = pkgs.mkShell {
       packages = [
+        pkgs.actionlint
         pkgs.aws-cdk-cli
         pkgs.git-lfs
         pkgs.nodejs

@@ -1,0 +1,1 @@
+"""Manually deployed mail infrastructure."""

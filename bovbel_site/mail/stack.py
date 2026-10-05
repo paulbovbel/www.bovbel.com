@@ -4,7 +4,7 @@ from aws_cdk import CfnOutput, RemovalPolicy, Stack
 from aws_cdk import aws_ses as ses
 from constructs import Construct
 
-from bovbel_site.infra.domain import DnsRecord, create_dns_records
+from bovbel_site.shared.dns import DnsRecord, create_dns_records
 
 
 SES_DKIM_HOSTED_ZONE = "dkim.amazonses.com"

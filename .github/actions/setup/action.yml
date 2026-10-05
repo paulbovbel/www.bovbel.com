@@ -1,0 +1,20 @@
+name: Set up project environment
+description: Restore Nix and uv caches and install locked dependencies
+runs:
+  using: composite
+  steps:
+    - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+    - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-${{ runner.arch }}-
+    - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          ~/.cache/uv
+          ~/.local/share/uv/python
+        key: uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.python-version') }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}
+        restore-keys: uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.python-version') }}-
+    - name: Install locked dependencies
+      shell: bash
+      run: nix develop --command uv sync --locked

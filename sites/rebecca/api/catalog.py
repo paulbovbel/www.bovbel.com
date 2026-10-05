@@ -1,5 +1,5 @@
 try:
-    from api.common import inventory_counts, response, square_post
+    from common import inventory_counts, response, square_post
 except ModuleNotFoundError:
     from sites.rebecca.api.common import inventory_counts, response, square_post
 

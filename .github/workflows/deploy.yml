@@ -1,77 +1,119 @@
 name: Deploy sites
 
 on:
+  pull_request:
   push:
-    branches:
-      - master
-  workflow_dispatch: {}
+    branches: [master]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 21 * * 2'
 
+# Finish production updates before starting another one. PR checks can be replaced.
 concurrency:
-  group: deploy-sites
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || 'deploy-sites' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  deploy:
-    name: Deploy ${{ matrix.domain }}
+  validate:
+    name: CI
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - domain: paul.bovbel.com
-            stack: paul-bovbel-com
-            role: paul-bovbel-com-deploy
-            run_tests: true
-          - domain: rebecca.bovbel.com
-            stack: rebecca-bovbel-com
-            role: rebecca-bovbel-com-deploy
-            run_tests: false
-
+    timeout-minutes: 15
+    outputs:
+      deploy: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+      paul: ${{ steps.changes.outputs.paul }}
+      rebecca: ${{ steps.changes.outputs.rebecca }}
+      dns: ${{ steps.changes.outputs.dns }}
+      # Manual and scheduled runs deploy all three stacks.
+      shared: ${{ steps.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    env:
+      UV_LOCKED: 'true'
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        lfs: true
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          lfs: true
+      - uses: ./.github/actions/setup
+      - name: Lint workflows
+        run: nix develop --command actionlint
+      - name: Run local tests
+        run: nix develop --command uv run pytest tests -v --durations=10
+      - name: Build and validate sites
+        run: |
+          for site in paul rebecca; do
+            nix develop --command uv run build-site --site "$site"
+            nix develop --command uv run pytest tests -v -m build_artifact --site "$site"
+          done
+      - name: Synthesize stacks
+        run: nix develop --command cdk synth --quiet --no-lookups -c prebuilt=true
+      - name: Detect deployment changes
+        if: github.event_name == 'push'
+        id: changes
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
+        with:
+          base: master
+          filters: |
+            shared:
+              - '.github/**'
+              - 'flake.*'
+              - '{pyproject.toml,uv.lock,.python-version,cdk*.json}'
+              - 'tests/**'
+              - 'bovbel_site/shared/**'
+              - 'bovbel_site/{app,__init__}.py'
+            websites: &websites
+              - 'sites/common/**'
+              - 'bovbel_site/websites/**'
+            paul:
+              - *websites
+              - 'sites/paul/**'
+            rebecca:
+              - *websites
+              - 'sites/rebecca/**'
+            dns:
+              - 'bovbel_site/dns/**'
+      - name: Save tested cloud assembly
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cloud-assembly
+          path: cdk.out/
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
 
-    - name: Install Nix
-      uses: cachix/install-nix-action@v27
+  deploy-paul:
+    name: Deploy Paul
+    needs: validate
+    if: needs.validate.outputs.deploy == 'true' && (needs.validate.outputs.paul == 'true' || needs.validate.outputs.shared == 'true')
+    uses: ./.github/workflows/deploy-stack.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      stack: paul-bovbel-com
+      site: paul
 
-    - name: Install dependencies
-      run: nix develop --command uv sync
+  deploy-rebecca:
+    name: Deploy Rebecca
+    needs: validate
+    if: needs.validate.outputs.deploy == 'true' && (needs.validate.outputs.rebecca == 'true' || needs.validate.outputs.shared == 'true')
+    uses: ./.github/workflows/deploy-stack.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      stack: rebecca-bovbel-com
+      site: rebecca
 
-    - name: Run pre-deploy tests
-      if: matrix.run_tests
-      run: nix develop --command uv run pytest tests -v -m pre_deploy --junit-xml=results-pre-deploy-${{ matrix.stack }}.xml
-
-    - name: Publish pre-deploy test results
-      uses: mikepenz/action-junit-report@v6
-      if: always() && matrix.run_tests
-      with:
-        report_paths: results-pre-deploy-${{ matrix.stack }}.xml
-        fail_on_failure: true
-        check_name: Pre-deploy Tests (${{ matrix.domain }})
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v5
-      with:
-        role-to-assume: arn:aws:iam::713134244406:role/${{ matrix.role }}
-        aws-region: us-east-1
-
-    - name: Deploy stack
-      run: nix develop --command cdk deploy --require-approval never ${{ matrix.stack }}
-
-    - name: Run post-deploy tests
-      if: matrix.run_tests
-      run: nix develop --command uv run pytest tests -v -m post_deploy --junit-xml=results-post-deploy-${{ matrix.stack }}.xml
-
-    - name: Publish post-deploy test results
-      uses: mikepenz/action-junit-report@v6
-      if: always() && matrix.run_tests
-      with:
-        report_paths: results-post-deploy-${{ matrix.stack }}.xml
-        fail_on_failure: true
-        check_name: Post-deploy Tests (${{ matrix.domain }})
+  deploy-dns:
+    name: Deploy DNS
+    needs: validate
+    if: needs.validate.outputs.deploy == 'true' && (needs.validate.outputs.dns == 'true' || needs.validate.outputs.shared == 'true')
+    uses: ./.github/workflows/deploy-stack.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      stack: bovbel-com-dns

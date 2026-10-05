@@ -7,7 +7,7 @@ import runpy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
 
-from bovbel_site.sites import SITES_BY_NAME, build_site
+from bovbel_site.websites.sites import SITES_BY_NAME, build_site
 
 
 def lambda_event(method, body=None):
@@ -117,6 +117,13 @@ def serve_main():
     args = parser.parse_args()
 
     serve_site(SITES_BY_NAME[args.site], args.host, args.port)
+
+
+def build_main():
+    parser = argparse.ArgumentParser(description="Build a static site")
+    site_arg(parser)
+    args = parser.parse_args()
+    build_site(SITES_BY_NAME[args.site])
 
 
 if __name__ == "__main__":

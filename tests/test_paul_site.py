@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 import io
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from functools import cache
 from html.parser import HTMLParser
+from types import SimpleNamespace
 from urllib.parse import urljoin, urlparse
 
 import pytest
 import requests
 from aws_cdk import App, DefaultStackSynthesizer, assertions
 
-from bovbel_site.infra.website import URL_REWRITE_FUNCTION_CODE, WebsiteStack
-from bovbel_site.sites import SITES_BY_NAME, build_site
+from bovbel_site.websites.stack import URL_REWRITE_FUNCTION_CODE, WebsiteStack
+from bovbel_site.websites.sites import SITES_BY_NAME, build_site
 
 
 REQUEST_TIMEOUT = 10
@@ -123,14 +125,18 @@ def is_local_url(url):
     return urlparse(url).netloc in PAUL_SITE.domain_names
 
 
-def link_is_valid(url):
-    if is_local_url(url):
-        path = urlparse(url).path.lstrip("/")
-        if path == RESUME_KEY:
-            return get_resume_pdf().startswith(b"%PDF")
-        return (STATIC_DIR / path).exists()
+def local_link_exists(url, directory):
+    path = urlparse(url).path.lstrip("/")
+    target = directory / path
+    return target.is_file() or (target / "index.html").is_file()
 
-    return http_head(url).status_code < 400
+
+def external_link_error(url):
+    try:
+        result = http_head(url)
+        return f"{url}: HTTP {result.status_code}" if result.status_code >= 400 else None
+    except requests.RequestException as error:
+        return f"{url}: {error}"
 
 
 def meta_refresh_target(html):
@@ -144,21 +150,34 @@ def test_paul_index_links_are_valid():
     links = extract_html_links((STATIC_DIR / "index.html").read_text(), INDEX_URL)
 
     assert links, "No links found in index.html"
-    assert [url for url in links if not link_is_valid(url)] == []
+    generated_paths = {RESUME_KEY, *PAUL_SITE.redirects}
+    assert [
+        url for url in links
+        if is_local_url(url)
+        and urlparse(url).path.strip("/") not in generated_paths
+        and not local_link_exists(url, STATIC_DIR)
+    ] == []
 
 
-@pytest.mark.pre_deploy
-def test_paul_resume_pdf_links_are_valid():
+@pytest.mark.external
+def test_external_links_are_valid():
     content = get_resume_pdf()
-    links = extract_pdf_links(content)
+    links = set(extract_pdf_links(content))
+    links.update(extract_html_links((STATIC_DIR / "index.html").read_text(), INDEX_URL))
+    links = sorted(url for url in links if not is_local_url(url) and urlparse(url).scheme in {"http", "https"})
 
     assert content.startswith(b"%PDF")
     assert links, "No links found in resume PDF"
-    assert [url for url in links if not link_is_valid(url)] == []
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        errors = [error for error in pool.map(external_link_error, links) if error]
+    assert not errors, "\n".join(errors)
 
 
 @pytest.mark.pre_deploy
-def test_paul_redirect_pages_are_generated(tmp_path):
+def test_paul_redirect_pages_are_generated(tmp_path, monkeypatch):
+    monkeypatch.setattr(requests, "get", lambda *args, **kwargs: SimpleNamespace(
+        content=b"%PDF-test", raise_for_status=lambda: None
+    ))
     site = replace(PAUL_SITE, output_dir=tmp_path / "build")
     build_site(site)
 
@@ -233,9 +252,27 @@ def test_cloudfront_rewrites_directory_urls(tmp_path):
 
 @pytest.mark.post_deploy
 @pytest.mark.parametrize("url,target", REDIRECT_URLS.items())
-def test_live_meta_refresh_redirect(url, target):
+def test_live_meta_refresh_redirect(url, target, selected_site):
+    if selected_site != "paul":
+        pytest.skip("Paul-only redirect")
     response = http_get(url)
 
     assert response.status_code == 200
     assert "text/html" in response.headers.get("Content-Type", "")
     assert meta_refresh_target(response.text) == target
+
+
+@pytest.mark.build_artifact
+def test_paul_built_resume_and_links(selected_site):
+    if selected_site != "paul":
+        pytest.skip("Paul-only resume")
+    directory = PAUL_SITE.output_dir
+    content = (directory / RESUME_KEY).read_bytes()
+    assert content.startswith(b"%PDF")
+    links = extract_pdf_links(content)
+    assert links, "No links found in resume PDF"
+    links += extract_html_links((directory / "index.html").read_text(), INDEX_URL)
+    assert [url for url in links if is_local_url(url) and not local_link_exists(url, directory)] == []
+    for name, target in PAUL_SITE.redirects.items():
+        for key in (f"{name}.html", f"{name}/index.html"):
+            assert meta_refresh_target((directory / key).read_text()) == target

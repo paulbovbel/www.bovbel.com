@@ -6,7 +6,7 @@ from functools import cache
 from uuid import uuid4
 
 try:
-    from api.common import inventory_counts, response, square_get, square_post
+    from common import inventory_counts, response, square_get, square_post
 except ModuleNotFoundError:
     from sites.rebecca.api.common import inventory_counts, response, square_get, square_post
 
