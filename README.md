@@ -141,8 +141,8 @@ subsequent GitHub Actions runs deploy the DNS and site stacks through CDK.
 
 ## Updating Dependencies
 
-Dependabot checks GitHub Actions and Python (`pyproject.toml` / `uv.lock`)
-dependencies weekly, grouping version updates into one PR per ecosystem.
+Dependabot checks GitHub Actions, Python (`pyproject.toml` / `uv.lock`), and Nix
+dependencies weekly, grouping version updates into one PR across all ecosystems.
 Actionlint is available in `nix develop` and runs as part of CI.
 
 For a manual Python dependency refresh:
